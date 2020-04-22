@@ -1,6 +1,7 @@
 ---
 title: 'NGINX and client certificates'
 layout: 'post'
+tags: ["nginx"]
 ---
 {:toc}
 

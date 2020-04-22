@@ -1,4 +1,198 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.6">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-04-22T17:15:15+03:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">NGINX and client certificates</title><link href="http://localhost:4000/2020/04/18/nginx-client-certs.html" rel="alternate" type="text/html" title="NGINX and client certificates" /><published>2020-04-18T00:00:00+03:00</published><updated>2020-04-18T00:00:00+03:00</updated><id>http://localhost:4000/2020/04/18/nginx-client-certs</id><content type="html" xml:base="http://localhost:4000/2020/04/18/nginx-client-certs.html">&lt;p&gt;TLS  server authentication is a very common process these days, thanks to widely adapted HTTPS usage. Here client (e.g. browser) can verify that server’s certificate is trusted and matches the server’s FQDN name.&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.6">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-04-23T00:52:33+03:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Debugging Ansible modules</title><link href="http://localhost:4000/2020/04/23/debug_with_ansible.html" rel="alternate" type="text/html" title="Debugging Ansible modules" /><published>2020-04-23T00:00:00+03:00</published><updated>2020-04-23T00:00:00+03:00</updated><id>http://localhost:4000/2020/04/23/debug_with_ansible</id><content type="html" xml:base="http://localhost:4000/2020/04/23/debug_with_ansible.html">&lt;p&gt;This is a small tutorial where I show how to dive inside Ansible’s python modules in error debugging. This has been a useful trick when I have had an error with a module, and no matter how much verbosity I add, or use &lt;code class=&quot;highlighter-rouge&quot;&gt;DEBUG=1&lt;/code&gt;, I still couldn’t figure out what was the reason for the error. I’m sure there’s more official way to debug modules, but so far, this way has covered my needs.&lt;/p&gt;
+
+&lt;p&gt;I’m not explaining regular Ansible usage, so following this requires some prior knowledge.&lt;/p&gt;
+
+&lt;h2 id=&quot;create-a-new-playbook-for-testing&quot;&gt;Create a new playbook for testing&lt;/h2&gt;
+
+&lt;p&gt;The directory structure for the playbook:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;testplay/
+├── hosts
+└── test_play.yml
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;test_play.yml&lt;/code&gt; file content:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;language-yaml highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nn&quot;&gt;---&lt;/span&gt;
+&lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;hosts&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;testmachines&lt;/span&gt;
+  &lt;span class=&quot;na&quot;&gt;tasks&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;pi&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;Try&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s&quot;&gt;to&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s&quot;&gt;add&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s&quot;&gt;user&quot;&lt;/span&gt;
+      &lt;span class=&quot;na&quot;&gt;user&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;na&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;pi&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;bob&quot;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Spoiler alert, the play is missing &lt;code class=&quot;highlighter-rouge&quot;&gt;become: yes&lt;/code&gt; (unless executed as root). I was lazy to create some complex error scenario, so I just use this to demonstrate the concept.&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;hosts&lt;/code&gt; file content:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;[testmachines]
+&amp;lt;YOUR_SERVER&amp;gt; ansible_user=&amp;lt;YOUR_USER&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;test-the-playbook&quot;&gt;Test the playbook&lt;/h2&gt;
+
+&lt;p&gt;Let’s just run the playbook and see that we are getting the error as we expected. Like said, I just didn’t figure out a better scenario, for now, so just imagine that the error is something where you have no idea what is causing it.&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;ansible-playbook &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; hosts test_play.yml
+
+PLAY &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;testmachines] &lt;span class=&quot;k&quot;&gt;***********************************************************************************************************************************************************************************************&lt;/span&gt;
+
+TASK &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;Try to add user] &lt;span class=&quot;k&quot;&gt;********************************************************************************************************************************************************************************************&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;WARNING]: Platform linux on host 1.2.3.4 is using the discovered Python interpreter at /usr/bin/python, but future installation of another Python interpreter could change this. See
+https://docs.ansible.com/ansible/2.9/reference_appendices/interpreter_discovery.html &lt;span class=&quot;k&quot;&gt;for &lt;/span&gt;more information.
+fatal: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;1.2.3.4]: FAILED! &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;ansible_facts&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;discovered_interpreter_python&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;/usr/bin/python&quot;&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;changed&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;msg&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;useradd: Permission denied.&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;useradd: cannot lock /etc/passwd; try again later.&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;name&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;bob&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;rc&quot;&lt;/span&gt;: 1&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+PLAY RECAP &lt;span class=&quot;k&quot;&gt;********************************************************************************************************************************************************************************************************&lt;/span&gt;
+1.2.3.4            : &lt;span class=&quot;nv&quot;&gt;ok&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;0    &lt;span class=&quot;nv&quot;&gt;changed&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;0    &lt;span class=&quot;nv&quot;&gt;unreachable&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;0    &lt;span class=&quot;nv&quot;&gt;failed&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;1    &lt;span class=&quot;nv&quot;&gt;skipped&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;0    &lt;span class=&quot;nv&quot;&gt;rescued&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;0    &lt;span class=&quot;nv&quot;&gt;ignored&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;0   
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Use &lt;code class=&quot;highlighter-rouge&quot;&gt;--ask-pass&lt;/code&gt; if you don’t have SSH keys configured with the target machine.&lt;/p&gt;
+
+&lt;h2 id=&quot;keep-remote-files&quot;&gt;Keep remote files&lt;/h2&gt;
+
+&lt;p&gt;When Ansible executes tasks it will move bunch of Python scripts to remote host and then executes those scripts. Usually it will remove these files after the execution. By specifying &lt;code class=&quot;highlighter-rouge&quot;&gt;ANSIBLE_KEEP_REMOTE_FILES&lt;/code&gt; variable to &lt;code class=&quot;highlighter-rouge&quot;&gt;1&lt;/code&gt;,  Ansible won’t remove these files from the remote host.&lt;/p&gt;
+
+&lt;p&gt;Now execute the playbook this way and include some verbosity flags.&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ ANSIBLE_KEEP_REMOTE_FILES&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;1 ansible-playbook &lt;span class=&quot;nt&quot;&gt;-vvvv&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-i&lt;/span&gt; hosts test_play.yml 
+ansible-playbook 2.9.6
+...[debug output]...
+&lt;span class=&quot;s2&quot;&gt;&quot;'&quot;&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;'/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py &amp;amp;&amp;amp; sleep 0'&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;'&quot;&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;''&lt;/span&gt;
+...
+fatal: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;159.65.219.153]: FAILED! &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+....
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Search the output for lines like &lt;code class=&quot;highlighter-rouge&quot;&gt;&quot;'&quot;'/usr/bin/python /home/&amp;lt;ansible_user&amp;gt;/.ansible/tmp.[..snip..]..AnsiballZ_user.py &amp;amp;&amp;amp; sleep 0'&quot;'&quot;''&lt;/code&gt; and copy the python command from the last matching line.&lt;/p&gt;
+
+&lt;p&gt;Next, SSH into your remote host and execute the python command.&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;msg&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;useradd: Permission denied.&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;useradd: cannot lock /etc/passwd; try again later.&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;failed&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;true&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;rc&quot;&lt;/span&gt;: 1, &lt;span class=&quot;s2&quot;&gt;&quot;name&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;bob&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;invocation&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;module_args&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;comment&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_bits&quot;&lt;/span&gt;: 0, &lt;span class=&quot;s2&quot;&gt;&quot;update_password&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;always&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;non_unique&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;force&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_type&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;rsa&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;create_home&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;true&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;password_lock&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_passphrase&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;uid&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;home&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;append&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;skeleton&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_comment&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;ansible-generated on mc1&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;group&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;system&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;state&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;present&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;role&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;hidden&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;local&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;authorization&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;profile&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;shell&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;expires&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_file&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;groups&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;move_home&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;password&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;name&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;bob&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;seuser&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;remove&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;login_class&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;generate_ssh_key&quot;&lt;/span&gt;: null&lt;span class=&quot;o&quot;&gt;}}}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;It’s the same error message we had during the playbook execution, so we have the correct file.&lt;/p&gt;
+
+&lt;h2 id=&quot;extract-modules-from-the-remote-files&quot;&gt;Extract modules from the remote files&lt;/h2&gt;
+
+&lt;p&gt;I haven’t look into ansible file structure too deeply, but enough to know that modules are not directly in this file. Instead, the file includes variable &lt;code class=&quot;highlighter-rouge&quot;&gt;ZIPDATA&lt;/code&gt;, and its value contains a Base64 encode zip file.&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;grep &lt;/span&gt;ZIPDATA /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+ZIPDATA &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&quot;&quot;UEsDBBQAAAAIAAScllCdxfFrNwAAAEgAAAAgAAAAYW5zaW...
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Let’s extract the B64 encoded portion, decode it, and create a zip file from the output.&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~$ grep -oP '&quot;&quot;&quot;(.*?)&quot;&quot;&quot;' /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py | tr -d \&quot; | base64 -d &amp;gt; zipfile.zip
+~$ file zipfile.zip 
+zipfile.zip: Zip archive data, at least v2.0 to extract
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Now unzip the file:&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;unzip zipfile.zip 
+Archive:  zipfile.zip
+  inflating: ansible/module_utils/__init__.py  
+  inflating: ansible/__init__.py     
+  inflating: ansible/module_utils/basic.py  
+  inflating: ansible/module_utils/distro/__init__.py  
+  inflating: ansible/module_utils/_text.py  
+  inflating: ansible/module_utils/common/text/formatters.py  
+  inflating: ansible/module_utils/common/valusertion.py  
+  inflating: ansible/module_utils/common/text/converters.py  
+  inflating: ansible/module_utils/pycompat24.py  
+  inflating: ansible/module_utils/common/__init__.py  
+  inflating: ansible/module_utils/common/text/__init__.py  
+  inflating: ansible/module_utils/common/process.py  
+  inflating: ansible/module_utils/parsing/convert_bool.py  
+  inflating: ansible/module_utils/common/_utils.py  
+  inflating: ansible/module_utils/common/_collections_compat.py  
+  inflating: ansible/module_utils/parsing/__init__.py  
+  inflating: ansible/module_utils/common/_json_compat.py  
+  inflating: ansible/module_utils/six/__init__.py  
+  inflating: ansible/module_utils/common/sys_info.py  
+  inflating: ansible/module_utils/common/parameters.py  
+  inflating: ansible/module_utils/common/file.py  
+  inflating: ansible/module_utils/common/collections.py  
+  inflating: ansible/module_utils/distro/_distro.py  
+  inflating: ansible/modules/system/user.py  
+  inflating: ansible/modules/__init__.py  
+  inflating: ansible/modules/system/__init__.py  
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;search-for-the-needed-module&quot;&gt;Search for the needed module&lt;/h2&gt;
+
+&lt;p&gt;We know that our error happened during the task, which was using the user module. Check Ansible’s &lt;a href=&quot;https://docs.ansible.com/ansible/latest/modules/user_module.html&quot;&gt;documentation&lt;/a&gt; for that module. Inside the documentation page, there is an &lt;em&gt;Edit on GitHub&lt;/em&gt; link, and by following the link, you can see that &lt;code class=&quot;highlighter-rouge&quot;&gt;user.py&lt;/code&gt; is the python file for the module.&lt;/p&gt;
+
+&lt;p&gt;Search &lt;code class=&quot;highlighter-rouge&quot;&gt;user.py&lt;/code&gt; from the unzipped folder:&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;find ./ansible/ &lt;span class=&quot;nt&quot;&gt;-name&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;user.py&quot;&lt;/span&gt;
+./ansible/modules/system/user.py
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Open the file and add &lt;code class=&quot;highlighter-rouge&quot;&gt;print(&quot;Our debug test&quot;)&lt;/code&gt; line to &lt;code class=&quot;highlighter-rouge&quot;&gt;create_user&lt;/code&gt; method inside the module.&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;So, from:
+    &lt;div class=&quot;language-python highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;create_user&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+ &lt;span class=&quot;c1&quot;&gt;# by default we use the create_user_useradd method
+&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;create_user_useradd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; 
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;    &lt;/div&gt;
+  &lt;/li&gt;
+  &lt;li&gt;To:
+    &lt;div class=&quot;language-python highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;create_user&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+ &lt;span class=&quot;c1&quot;&gt;# by default we use the create_user_useradd method
+&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;print&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;Our debug test&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+ &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;create_user_useradd&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;    &lt;/div&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Next:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Zip the &lt;code class=&quot;highlighter-rouge&quot;&gt;ansible&lt;/code&gt; folder:&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;zip &lt;span class=&quot;nt&quot;&gt;-r&lt;/span&gt; newzip.zip ansible
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;B64 encode the content, and forward stdout to bottom of the &lt;code class=&quot;highlighter-rouge&quot;&gt;AnsiballZ_user.py&lt;/code&gt; file.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;cat &lt;/span&gt;newzip.zip | &lt;span class=&quot;nb&quot;&gt;base64&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-w&lt;/span&gt; 0 &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Open the file&lt;/li&gt;
+  &lt;li&gt;Cut the new encoded value from the file’s last line.&lt;/li&gt;
+  &lt;li&gt;Replace &lt;code class=&quot;highlighter-rouge&quot;&gt;ZIPFILE&lt;/code&gt; variable’s old value with the new value&lt;/li&gt;
+  &lt;li&gt;Close file&lt;/li&gt;
+  &lt;li&gt;Execute the script again&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Check output (Hint: you should now see &lt;em&gt;Our debug test&lt;/em&gt; in the output )&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+Our debug &lt;span class=&quot;nb&quot;&gt;test&lt;/span&gt;
+
+&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;msg&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;useradd: Permission denied.&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;useradd: cannot lock /etc/passwd; try again later.&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;failed&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;true&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;rc&quot;&lt;/span&gt;: 1, &lt;span class=&quot;s2&quot;&gt;&quot;name&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;bob&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;invocation&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;module_args&quot;&lt;/span&gt;: &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;comment&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_bits&quot;&lt;/span&gt;: 0, &lt;span class=&quot;s2&quot;&gt;&quot;update_password&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;always&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;non_unique&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;force&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_type&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;rsa&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;create_home&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;true&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;password_lock&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_passphrase&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;uid&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;home&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;append&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;skeleton&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_comment&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;ansible-generated on mc1&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;group&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;system&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;state&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;present&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;role&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;hidden&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;local&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;authorization&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;profile&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;shell&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;expires&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;ssh_key_file&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;groups&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;move_home&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;password&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;name&quot;&lt;/span&gt;: &lt;span class=&quot;s2&quot;&gt;&quot;bob&quot;&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;seuser&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;remove&quot;&lt;/span&gt;: &lt;span class=&quot;nb&quot;&gt;false&lt;/span&gt;, &lt;span class=&quot;s2&quot;&gt;&quot;login_class&quot;&lt;/span&gt;: null, &lt;span class=&quot;s2&quot;&gt;&quot;generate_ssh_key&quot;&lt;/span&gt;: null&lt;span class=&quot;o&quot;&gt;}}}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;recap&quot;&gt;Recap&lt;/h2&gt;
+
+&lt;p&gt;Printing &lt;em&gt;Our debug test&lt;/em&gt; may not have been the most useful thing to do, but I hope you see the potential value with a more complex error situation. You can, for example, add multiple print statements to see where execution stops inside the module, or you can do some more advanced python debugging.&lt;/p&gt;</content><author><name></name></author><category term="ansible" /><summary type="html"></summary></entry><entry><title type="html">NGINX and client certificates</title><link href="http://localhost:4000/2020/04/18/nginx-client-certs.html" rel="alternate" type="text/html" title="NGINX and client certificates" /><published>2020-04-18T00:00:00+03:00</published><updated>2020-04-18T00:00:00+03:00</updated><id>http://localhost:4000/2020/04/18/nginx-client-certs</id><content type="html" xml:base="http://localhost:4000/2020/04/18/nginx-client-certs.html">&lt;p&gt;TLS  server authentication is a very common process these days, thanks to widely adapted HTTPS usage. Here client (e.g. browser) can verify that server’s certificate is trusted and matches the server’s FQDN name.&lt;/p&gt;
 
 &lt;p&gt;TLS client authentication is not as commonly seen, but practically the process is just the same verification done otherways around.  It doesn’t add any extra layers to TLS encryption, but it allows servers to validate that client connection is coming from a trusted party.&lt;/p&gt;
 
@@ -9,7 +203,11 @@ Exampes will use a simple architecture where NGINX acts as a reverse proxy in fr
 
 &lt;h2 id=&quot;generate-test-certificate&quot;&gt;Generate test certificate&lt;/h2&gt;
 
-&lt;p&gt;Let’s generate a self-signed certificate that we can use as a client certificate for a testing purposes:&lt;/p&gt;
+&lt;p&gt;Here are examples of how to generate self-signed certificates for &lt;strong&gt;testing&lt;/strong&gt;. Copy these certificate(s) and private key(s) to the machine where you will configure the NGINX.&lt;/p&gt;
+
+&lt;h3 id=&quot;client-certificate&quot;&gt;Client certificate&lt;/h3&gt;
+
+&lt;p&gt;Let’s generate a self-signed client certificate:&lt;/p&gt;
 
 &lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;openssl req &lt;span class=&quot;nt&quot;&gt;-x509&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-newkey&lt;/span&gt; rsa:4096 &lt;span class=&quot;nt&quot;&gt;-keyout&lt;/span&gt; client1_key.pem &lt;span class=&quot;nt&quot;&gt;-out&lt;/span&gt; client1_crt.pem &lt;span class=&quot;nt&quot;&gt;-days&lt;/span&gt; 10000 &lt;span class=&quot;nt&quot;&gt;-nodes&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
@@ -24,6 +222,10 @@ Exampes will use a simple architecture where NGINX acts as a reverse proxy in fr
 &lt;p&gt;We will use this certificate to authenticate with NGINX server.&lt;/p&gt;
 
 &lt;p&gt;&lt;img src=&quot;/assets/nginx_client_tls_arch.png&quot; alt=&quot;architecture&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;server-certificate&quot;&gt;Server certificate&lt;/h3&gt;
+
+&lt;p&gt;You can use the same command as with client certificates to generate your server certificate. With a publicly registered domain, you can also use certificate provider like &lt;a href=&quot;https://letsencrypt.org/&quot;&gt;Let’s Encrypt&lt;/a&gt;.&lt;/p&gt;
 
 &lt;h2 id=&quot;install-and-configuring-nginx&quot;&gt;Install and configuring NGINX&lt;/h2&gt;
 
@@ -427,4 +629,4 @@ Consider what potential issues are in the below image. You can imagine that ther
       &lt;p&gt;The given example configuration of NGINX may not reflect all TLS related security configurations that are recommended at least in production use. Check &lt;a href=&quot;https://wiki.mozilla.org/Security/Server_Side_TLS&quot;&gt;Mozillas TLS recommendations&lt;/a&gt; and &lt;a href=&quot;https://ssl-config.mozilla.org/&quot;&gt;TLS configuration tool&lt;/a&gt; for better overall information. &lt;a href=&quot;#fnref:2&quot; class=&quot;reversefootnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
     &lt;/li&gt;
   &lt;/ol&gt;
-&lt;/div&gt;</content><author><name></name></author><summary type="html"></summary></entry></feed>
+&lt;/div&gt;</content><author><name></name></author><category term="nginx" /><summary type="html"></summary></entry></feed>

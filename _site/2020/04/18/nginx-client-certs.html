@@ -57,7 +57,11 @@ Exampes will use a simple architecture where NGINX acts as a reverse proxy in fr
 
 <h2 id="generate-test-certificate">Generate test certificate</h2>
 
-<p>Let’s generate a self-signed certificate that we can use as a client certificate for a testing purposes:</p>
+<p>Here are examples of how to generate self-signed certificates for <strong>testing</strong>. Copy these certificate(s) and private key(s) to the machine where you will configure the NGINX.</p>
+
+<h3 id="client-certificate">Client certificate</h3>
+
+<p>Let’s generate a self-signed client certificate:</p>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-x509</span> <span class="nt">-newkey</span> rsa:4096 <span class="nt">-keyout</span> client1_key.pem <span class="nt">-out</span> client1_crt.pem <span class="nt">-days</span> 10000 <span class="nt">-nodes</span>
 </code></pre></div></div>
@@ -72,6 +76,10 @@ Exampes will use a simple architecture where NGINX acts as a reverse proxy in fr
 <p>We will use this certificate to authenticate with NGINX server.</p>
 
 <p><img src="/assets/nginx_client_tls_arch.png" alt="architecture" /></p>
+
+<h3 id="server-certificate">Server certificate</h3>
+
+<p>You can use the same command as with client certificates to generate your server certificate. With a publicly registered domain, you can also use certificate provider like <a href="https://letsencrypt.org/">Let’s Encrypt</a>.</p>
 
 <h2 id="install-and-configuring-nginx">Install and configuring NGINX</h2>
 
@@ -501,7 +509,7 @@ $(document).ready(function() {
     <div class="footer-col-wrapper">
       <div class="footer-col footer-col-1">
         <ul class="contact-list">
-          <li class="p-name">Blog Without Name</li><li><a class="u-email" href="mailto:mtask@protonmail.com">mtask@protonmail.com</a></li></ul>
+          <li class="p-name">Blog Without Name</li><li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li></ul>
       </div>
 
       <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/mtask"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">mtask</span></a></li></ul>
