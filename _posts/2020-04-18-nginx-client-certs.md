@@ -16,7 +16,11 @@ Technically we are doing *mutual authentication*[^1], but I will concentrate mor
 
 ## Generate test certificate
 
-Let's generate a self-signed certificate that we can use as a client certificate for a testing purposes:
+Here are examples of how to generate self-signed certificates for **testing**. Copy these certificate(s) and private key(s) to the machine where you will configure the NGINX.
+
+### Client certificate
+
+Let's generate a self-signed client certificate:
 
 ```bash
 openssl req -x509 -newkey rsa:4096 -keyout client1_key.pem -out client1_crt.pem -days 10000 -nodes
@@ -30,6 +34,10 @@ This gives us:
 We will use this certificate to authenticate with NGINX server.
 
 ![architecture](/assets/nginx_client_tls_arch.png)
+
+### Server certificate
+
+You can use the same command as with client certificates to generate your server certificate. With a publicly registered domain, you can also use certificate provider like [Let's Encrypt](https://letsencrypt.org/).
 
 ## Install and configuring NGINX
 
