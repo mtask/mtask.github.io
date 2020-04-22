@@ -94,7 +94,7 @@ It's the same error message we had during the playbook execution, so we have the
 
 ## Extract modules from the remote files
 
-I haven't look into ansible file structure too deeply, but enough to know that modules are not directly in this file. Instead, the file includes variable `ZIPDATA`, and its value contains a Base64 encode zip file.
+I haven't look into ansible file structure too deeply, but enough to know that modules are not directly in this file. Instead, the file includes variable `ZIPDATA`, and its value contains a Base64 encoded zip file.
 
 ```bash
 ~$ grep ZIPDATA /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
@@ -191,7 +191,7 @@ $ cat newzip.zip | base64 -w 0 >> /home/user/.ansible/tmp/ansible-tmp-1587573128
 3. Open the file
 4. Cut the new encoded value from the file's last line. 
 5. Replace `ZIPFILE` variable's old value with the new value
-6. Close file
+6. Close the file
 7. Execute the script again
 
 ```bash
