@@ -26,6 +26,7 @@ markdown: kramdown
 theme: minima
 #theme: jekyll-theme-console
 #remote_theme: b2a3e8/jekyll-theme-console
+remote_theme: minima
 plugins:
   - jekyll-feed
 
