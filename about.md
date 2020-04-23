@@ -1,7 +1,7 @@
 ---
 layout: page
 title: /whoami
-permalink: /about/
+permalink: /whoami/
 ---
 
 TBD

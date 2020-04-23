@@ -20,7 +20,9 @@ baseurl: "" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 #twitter_username: jekyllrb
 github_username:  mtask
-
+gpg: 
+  pub: '/files/publickey.mtask.gh@protonmail.com.asc'
+  fingerprint: '8949b98a4e63585fe3bf6a953b9fd3e9ad04482e (gpg)'
 # Build settings
 markdown: kramdown
 theme: minima

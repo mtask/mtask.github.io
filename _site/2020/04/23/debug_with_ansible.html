@@ -30,7 +30,7 @@
           </span>
         </label>
 
-        <div class="trigger"><a class="page-link" href="/">/posts</a><a class="page-link" href="/about/">/whoami</a></div>
+        <div class="trigger"><a class="page-link" href="/">/posts</a><a class="page-link" href="/whoami/">/whoami</a></div>
       </nav></div>
 </header>
 <main class="page-content" aria-label="Content">
@@ -111,7 +111,7 @@ ansible-playbook 2.9.6
 ...[debug output]...
 <span class="s2">"'"</span><span class="s1">'/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py &amp;&amp; sleep 0'</span><span class="s2">"'"</span><span class="s1">''</span>
 ...
-fatal: <span class="o">[</span>159.65.219.153]: FAILED! <span class="o">=&gt;</span> <span class="o">{</span>
+fatal: <span class="o">[</span>1.2.3.4]: FAILED! <span class="o">=&gt;</span> <span class="o">{</span>
 ....
 </code></pre></div></div>
 
@@ -127,7 +127,7 @@ fatal: <span class="o">[</span>159.65.219.153]: FAILED! <span class="o">=&gt;</s
 
 <h2 id="extract-modules-from-the-remote-files">Extract modules from the remote files</h2>
 
-<p>I haven’t look into ansible file structure too deeply, but enough to know that modules are not directly in this file. Instead, the file includes variable <code class="highlighter-rouge">ZIPDATA</code>, and its value contains a Base64 encode zip file.</p>
+<p>I haven’t look into ansible file structure too deeply, but enough to know that modules are not directly in this file. Instead, the file includes variable <code class="highlighter-rouge">ZIPDATA</code>, and its value contains a Base64 encoded zip file.</p>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span><span class="nb">grep </span>ZIPDATA /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
 ZIPDATA <span class="o">=</span> <span class="s2">"""UEsDBBQAAAAIAAScllCdxfFrNwAAAEgAAAAgAAAAYW5zaW...
@@ -221,7 +221,7 @@ Archive:  zipfile.zip
   <li>Open the file</li>
   <li>Cut the new encoded value from the file’s last line.</li>
   <li>Replace <code class="highlighter-rouge">ZIPFILE</code> variable’s old value with the new value</li>
-  <li>Close file</li>
+  <li>Close the file</li>
   <li>Execute the script again</li>
 </ol>
 
@@ -266,7 +266,7 @@ $(document).ready(function() {
     <div class="footer-col-wrapper">
       <div class="footer-col footer-col-1">
         <ul class="contact-list">
-          <li class="p-name">Blog Without Name</li><li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li></ul>
+          <li class="p-name">Blog Without Name</li><li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li><li><a href="/files/publickey.mtask.gh@protonmail.com.asc">8949b98a4e63585fe3bf6a953b9fd3e9ad04482e (gpg)</a></li></ul>
       </div>
 
       <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/mtask"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">mtask</span></a></li></ul>

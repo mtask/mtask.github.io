@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.6">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-04-23T00:52:33+03:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Debugging Ansible modules</title><link href="http://localhost:4000/2020/04/23/debug_with_ansible.html" rel="alternate" type="text/html" title="Debugging Ansible modules" /><published>2020-04-23T00:00:00+03:00</published><updated>2020-04-23T00:00:00+03:00</updated><id>http://localhost:4000/2020/04/23/debug_with_ansible</id><content type="html" xml:base="http://localhost:4000/2020/04/23/debug_with_ansible.html">&lt;p&gt;This is a small tutorial where I show how to dive inside Ansible’s python modules in error debugging. This has been a useful trick when I have had an error with a module, and no matter how much verbosity I add, or use &lt;code class=&quot;highlighter-rouge&quot;&gt;DEBUG=1&lt;/code&gt;, I still couldn’t figure out what was the reason for the error. I’m sure there’s more official way to debug modules, but so far, this way has covered my needs.&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.6">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-04-24T01:44:19+03:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Debugging Ansible modules</title><link href="http://localhost:4000/2020/04/23/debug_with_ansible.html" rel="alternate" type="text/html" title="Debugging Ansible modules" /><published>2020-04-23T00:00:00+03:00</published><updated>2020-04-23T00:00:00+03:00</updated><id>http://localhost:4000/2020/04/23/debug_with_ansible</id><content type="html" xml:base="http://localhost:4000/2020/04/23/debug_with_ansible.html">&lt;p&gt;This is a small tutorial where I show how to dive inside Ansible’s python modules in error debugging. This has been a useful trick when I have had an error with a module, and no matter how much verbosity I add, or use &lt;code class=&quot;highlighter-rouge&quot;&gt;DEBUG=1&lt;/code&gt;, I still couldn’t figure out what was the reason for the error. I’m sure there’s more official way to debug modules, but so far, this way has covered my needs.&lt;/p&gt;
 
 &lt;p&gt;I’m not explaining regular Ansible usage, so following this requires some prior knowledge.&lt;/p&gt;
 
@@ -63,7 +63,7 @@ ansible-playbook 2.9.6
 ...[debug output]...
 &lt;span class=&quot;s2&quot;&gt;&quot;'&quot;&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;'/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py &amp;amp;&amp;amp; sleep 0'&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;'&quot;&lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;''&lt;/span&gt;
 ...
-fatal: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;159.65.219.153]: FAILED! &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+fatal: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;1.2.3.4]: FAILED! &lt;span class=&quot;o&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
 ....
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
@@ -79,7 +79,7 @@ fatal: &lt;span class=&quot;o&quot;&gt;[&lt;/span&gt;159.65.219.153]: FAILED! &l
 
 &lt;h2 id=&quot;extract-modules-from-the-remote-files&quot;&gt;Extract modules from the remote files&lt;/h2&gt;
 
-&lt;p&gt;I haven’t look into ansible file structure too deeply, but enough to know that modules are not directly in this file. Instead, the file includes variable &lt;code class=&quot;highlighter-rouge&quot;&gt;ZIPDATA&lt;/code&gt;, and its value contains a Base64 encode zip file.&lt;/p&gt;
+&lt;p&gt;I haven’t look into ansible file structure too deeply, but enough to know that modules are not directly in this file. Instead, the file includes variable &lt;code class=&quot;highlighter-rouge&quot;&gt;ZIPDATA&lt;/code&gt;, and its value contains a Base64 encoded zip file.&lt;/p&gt;
 
 &lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;~&lt;span class=&quot;nv&quot;&gt;$ &lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;grep &lt;/span&gt;ZIPDATA /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
 ZIPDATA &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;&quot;&quot;UEsDBBQAAAAIAAScllCdxfFrNwAAAEgAAAAgAAAAYW5zaW...
@@ -173,7 +173,7 @@ Archive:  zipfile.zip
   &lt;li&gt;Open the file&lt;/li&gt;
   &lt;li&gt;Cut the new encoded value from the file’s last line.&lt;/li&gt;
   &lt;li&gt;Replace &lt;code class=&quot;highlighter-rouge&quot;&gt;ZIPFILE&lt;/code&gt; variable’s old value with the new value&lt;/li&gt;
-  &lt;li&gt;Close file&lt;/li&gt;
+  &lt;li&gt;Close the file&lt;/li&gt;
   &lt;li&gt;Execute the script again&lt;/li&gt;
 &lt;/ol&gt;
 
