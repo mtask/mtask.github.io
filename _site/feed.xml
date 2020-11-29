@@ -1,4 +1,292 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.6">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-04-24T01:44:19+03:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Debugging Ansible modules</title><link href="http://localhost:4000/2020/04/23/debug_with_ansible.html" rel="alternate" type="text/html" title="Debugging Ansible modules" /><published>2020-04-23T00:00:00+03:00</published><updated>2020-04-23T00:00:00+03:00</updated><id>http://localhost:4000/2020/04/23/debug_with_ansible</id><content type="html" xml:base="http://localhost:4000/2020/04/23/debug_with_ansible.html">&lt;p&gt;This is a small tutorial where I show how to dive inside Ansible’s python modules in error debugging. This has been a useful trick when I have had an error with a module, and no matter how much verbosity I add, or use &lt;code class=&quot;highlighter-rouge&quot;&gt;DEBUG=1&lt;/code&gt;, I still couldn’t figure out what was the reason for the error. I’m sure there’s more official way to debug modules, but so far, this way has covered my needs.&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.6">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-11-29T18:03:15+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Monitoring login events with Powershell and WMI</title><link href="http://localhost:4000/2020/11/29/monitor-login-events-wmi.html" rel="alternate" type="text/html" title="Monitoring login events with Powershell and WMI" /><published>2020-11-29T00:00:00+02:00</published><updated>2020-11-29T00:00:00+02:00</updated><id>http://localhost:4000/2020/11/29/monitor-login-events-wmi</id><content type="html" xml:base="http://localhost:4000/2020/11/29/monitor-login-events-wmi.html">&lt;p&gt;This post shows a small Powershell script that I created to capture login events using WMI event subscription in Windows.
+Note that this method only applies to current Powershell session and is not persistent.&lt;/p&gt;
+
+&lt;p&gt;What the script does in practice:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Specify query that returns &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-logonsession&quot;&gt;win32_LogOnSession&lt;/a&gt; events&lt;/li&gt;
+  &lt;li&gt;Use &lt;code class=&quot;highlighter-rouge&quot;&gt;Register-WmiEvent&lt;/code&gt; to subscribe to these events&lt;/li&gt;
+  &lt;li&gt;When &lt;code class=&quot;highlighter-rouge&quot;&gt;LogOnSession&lt;/code&gt; event occurs:
+    &lt;ol&gt;
+      &lt;li&gt;Find related username based on the &lt;code class=&quot;highlighter-rouge&quot;&gt;LogonId&lt;/code&gt; information that is returned in the event&lt;/li&gt;
+      &lt;li&gt;Find SID of the username (tested only with non-ad machine/users)&lt;/li&gt;
+    &lt;/ol&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Below is the script. It most likely is more complex that it could be, but at least is seems to work as it should.&lt;/p&gt;
+
+&lt;div class=&quot;language-powershell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;# Get win32_LogOnSession events&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$query&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;Select TargetInstance From __InstanceCreationEvent WITHIN 10 WHERE TargetInstance ISA 'win32_LogOnSession'&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Subscripe to events based on the defined query&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;Register-WmiEvent&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-SourceIdentifier&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;LogonCapture&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-Query&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$query&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-Action&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+            &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Get logon type from the WMI event&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+            &lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;$this&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;LogonType&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$event&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;SourceEventArgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;NewEvent&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;TargetInstance&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;LogonType&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+            &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Get logonID from the WMI event&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+            &lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;$this&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;LogonId&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$event&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;SourceEventArgs&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;NewEvent&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;TargetInstance&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;LogonId&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+            &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Get logged on users&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+            &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$LoggedOnUsers&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Get-WmiObject&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-Class&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;win32_loggedonuser&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Select-Object&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Antecedent&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Dependent&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+            &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Loop over logged on users&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+            &lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;foreach&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$userobj&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;kr&quot;&gt;in&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$LoggedOnUsers&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Parse logonID from the current item&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$LogonID&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$userobj&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;Dependent&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;Select-String&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-Pattern&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;'win32_LogonSession\.LogonId=&quot;(.*)&quot;'&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;$_&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;matches&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;groups&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Check if the logonID matches with the ID of the WMI event&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                &lt;/span&gt;&lt;span class=&quot;kr&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$LogonID&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;Value&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;-eq&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;$this&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;LogonId&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                    &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# If logon IDs matched then extract associated username &lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                    &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$username&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$userobj&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;Antecedent&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;Select-String&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;-Pattern&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s1&quot;&gt;',Name=&quot;(.*)&quot;'&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;%&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;$_&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;matches&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;groups&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                    &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Get SID of the username&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                    &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$userObjForSid&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;New-Object&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;System.Security.Principal.NTAccount&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$username&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;Value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                    &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$strSID&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$userObjForSid&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;Translate&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;([&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;System.Security.Principal.&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;SecurityIdentifier&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;])&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                    &lt;/span&gt;&lt;span class=&quot;c&quot;&gt;# Write event details to console&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                    &lt;/span&gt;&lt;span class=&quot;nf&quot;&gt;Write-Host&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;New LogOn event for user &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$username&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt; (SID: &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$strSID&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;) of type &lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;$this&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;LogonType&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+                &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+            &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+               
+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Below is an example where I have saved the script as “monitor_login.ps1” and launched it. The shown output is coming from the &lt;code class=&quot;highlighter-rouge&quot;&gt;Register-WmiEvent&lt;/code&gt; command.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/wmi_register.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;After the event subscription was registered I logged in few times via RDP. The &lt;code class=&quot;highlighter-rouge&quot;&gt;New LogOn event for user...&lt;/code&gt; texts are result from those logins.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/wmi_capture_events.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;You can find the below line from the script which constructs the output line.&lt;/p&gt;
+
+&lt;div class=&quot;language-powershell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nf&quot;&gt;Write-Host&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;New LogOn event for user &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$username&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt; (SID: &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$strSID&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;) of type &lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;$this&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;LogonType&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;</content><author><name></name></author><category term="windows" /><category term="powershell" /><category term="wmi" /><summary type="html">This post shows a small Powershell script that I created to capture login events using WMI event subscription in Windows. Note that this method only applies to current Powershell session and is not persistent. What the script does in practice:</summary></entry><entry><title type="html">Encrypting an external HDD with LUKS</title><link href="http://localhost:4000/2020/07/01/luks-encrypt-external-hdd.html" rel="alternate" type="text/html" title="Encrypting an external HDD with LUKS" /><published>2020-07-01T00:00:00+03:00</published><updated>2020-07-01T00:00:00+03:00</updated><id>http://localhost:4000/2020/07/01/luks-encrypt-external-hdd</id><content type="html" xml:base="http://localhost:4000/2020/07/01/luks-encrypt-external-hdd.html">&lt;p&gt;A quick post to show how to encrypt an external hard drive using &lt;em&gt;Linux Unified Key Setup (LUKS)&lt;/em&gt;.&lt;/p&gt;
+
+&lt;p&gt;With “external” I mean a drive that doesn’t include Operating System related partitions. 
+It can be a portable one or an extra drive in your computer.&lt;/p&gt;
+
+&lt;p&gt;If you are looking for a solution with multi-platform support, then I would highly recommend checking the &lt;a href=&quot;[https://www.veracrypt.fr/en/Introduction.html&quot;&gt;VeraCrypt&lt;/a&gt; project.&lt;/p&gt;
+
+&lt;h1 id=&quot;what-is-luks&quot;&gt;What is LUKS?&lt;/h1&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;The Linux Unified Key Setup (LUKS) is a disk encryption specification created by Clemens Fruhwirth in 2004 and was originally intended for Linux.&lt;/p&gt;
+
+  &lt;p&gt;While most disk encryption software implements different, incompatible, and undocumented formats, LUKS implements a platform-independent standard on-disk format for use in various tools. This not only facilitates compatibility and interoperability among different programs, but also assures that they all implement password management in a secure and documented manner.&lt;/p&gt;
+
+  &lt;p&gt;The reference implementation for LUKS operates on Linux and is based on an enhanced version of cryptsetup, using dm-crypt as the disk encryption backend. Under Microsoft Windows, LUKS-encrypted disks can be used with the now defunct FreeOTFE (formerly DoxBox, LibreCrypt).&lt;/p&gt;
+
+  &lt;p&gt;– https://en.wikipedia.org/wiki/Linux_Unified_Key_Setup&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;h1 id=&quot;creating-a-partition&quot;&gt;Creating a partition&lt;/h1&gt;
+
+&lt;p&gt;When I say that I will encrypt the disk I’m, of course, actually encrypting a partition on the disk. I will just create a one partition that will use the whole disk space.&lt;/p&gt;
+
+&lt;p&gt;I’m using a portable external HDD which is showing up as &lt;code class=&quot;highlighter-rouge&quot;&gt;/dev/sdb&lt;/code&gt; in my system.&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo fdisk -l /dev/sdb1 
+Disk /dev/sdb1: 931,49 GiB, 1000169537536 bytes, 1953456128 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x00000000
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;I will use the &lt;code class=&quot;highlighter-rouge&quot;&gt;parted&lt;/code&gt;tool to create the partition.&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Opening the drive with &lt;code class=&quot;highlighter-rouge&quot;&gt;parted&lt;/code&gt;:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo parted /dev/sdb
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Creating a new partition table:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;(parted) mklabel msdos
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Creating a new partition:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;(parted) mkpart primary
+File system type?  [ext2]? ext4                                           
+Start? 0                                                                  
+End? 1000171                                                              
+Warning: The resulting partition is not properly aligned for best performance: 1s % 2048s != 0s
+Ignore/Cancel? Ignore                                                     
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Parted command &lt;code class=&quot;highlighter-rouge&quot;&gt;unit MB print free&lt;/code&gt; can be used to check the END value for the partition when the whole disk space is being used.&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Let’s check the result and exit from parted:&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;(parted) print                                                            
+Model: WD (scsi)
+Disk /dev/sdb: 1000171MB
+Sector size (logical/physical): 512B/512B
+Partition Table: msdos
+Disk Flags: 
+
+Number  Start   End        Size       Type     File system  Flags
+ 1      0,00MB  1000171MB  1000171MB  primary  ext4         lba
+
+(parted) quit
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h1 id=&quot;encrypting-the-new-partition&quot;&gt;Encrypting the new partition&lt;/h1&gt;
+
+&lt;p&gt;The command to encrypt a partition is &lt;code class=&quot;highlighter-rouge&quot;&gt;cryptsetup luksFormat /dev/&amp;lt;partition&amp;gt;&lt;/code&gt;. Now I just apply this against the &lt;code class=&quot;highlighter-rouge&quot;&gt;/dev/sdb1&lt;/code&gt;:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo cryptsetup luksFormat /dev/sdb1
+
+WARNING!
+========
+This will overwrite data on /dev/sdb1 irrevocably.
+
+Are you sure? (Type uppercase yes): YES
+Enter passphrase for /dev/sdb1: 
+Verify passphrase: 
+$
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h1 id=&quot;create-a-filesystem-on-the-encrypted-partition&quot;&gt;Create a filesystem on the encrypted partition&lt;/h1&gt;
+
+&lt;p&gt;The encrypted partition needs to be opened using &lt;code class=&quot;highlighter-rouge&quot;&gt;cryptsetup luksOpen /dev/&amp;lt;partition&lt;/code&gt;:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo cryptsetup luksOpen /dev/sdb1 encrypted-external-drive
+Enter passphrase for /dev/sdb1: 
+$
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Now, to create the filesystem I can regularly use &lt;code class=&quot;highlighter-rouge&quot;&gt;mkfs.ext4&lt;/code&gt;. But, instead of using it against &lt;code class=&quot;highlighter-rouge&quot;&gt;/dev/sdb1&lt;/code&gt;, I need to use &lt;code class=&quot;highlighter-rouge&quot;&gt;/dev/mapper/encrypted-external-drive&lt;/code&gt; which was specified during the &lt;code class=&quot;highlighter-rouge&quot;&gt;luksOpen&lt;/code&gt; command.&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo mkfs.ext4 /dev/mapper/encrypted-external-drive
+mke2fs 1.45.5 (07-Jan-2020)
+Creating filesystem with 244178175 4k blocks and 61046784 inodes
+Filesystem UUID: b1sc17f2-e2e5-4baa-ba87-60a507bdd0b1
+Superblock backups stored on blocks: 
+    32768, 98304, 163840, 229376, 294912, 819200, 884736, 1605632, 2654208, 
+    4096000, 7962624, 11239424, 20480000, 23887872, 71663616, 78675968, 
+    102400000, 214990848
+
+Allocating group tables: done                            
+Writing inode tables: done                            
+Creating journal (262144 blocks): done
+Writing superblocks and filesystem accounting information: done     
+
+$
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;To close the partition I will use &lt;code class=&quot;highlighter-rouge&quot;&gt;cryptsetup luksClose&lt;/code&gt; command:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo cryptsetup luksClose /dev/mapper/encrypted-external-drive
+$
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h1 id=&quot;mounting-the-encrypted-partition&quot;&gt;Mounting the encrypted partition&lt;/h1&gt;
+
+&lt;p&gt;First, once again, the LUKS partition needs to be opened using &lt;code class=&quot;highlighter-rouge&quot;&gt;cryptsetup luksOpen&lt;/code&gt;:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo cryptsetup luksOpen /dev/sdb1 encrypted-external-drive
+Enter passphrase for /dev/sdb1:
+$
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;The &lt;code class=&quot;highlighter-rouge&quot;&gt;/dev/mapper/&amp;lt;name I specified in luksOpen command&amp;gt;&lt;/code&gt; can be now mounted like an any regular partition:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo mount /dev/mapper/encrypted-external-drive /mnt/
+$ mount | grep 'encrypted-external'
+/dev/mapper/encrypted-external-drive on /mnt type ext4 (rw,relatime)
+$
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Then, just a quick test to verify that files can be stored as expected:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo touch /mnt/test.txt
+$ sudo umount /mnt 
+$ sudo cryptsetup luksClose /dev/mapper/encrypted-external-drive
+$ sudo cryptsetup luksOpen /dev/sdb1 encrypted-external-drive
+Enter passphrase for /dev/sdb1: 
+$ sudo mount /dev/mapper/encrypted-external-drive /mnt/
+$ ls -la /mnt/
+total 24
+drwxr-xr-x  3 root root  4096 heinä   1 11:43 .
+drwxr-xr-x 20 root root  4096 kesä   30 14:00 ..
+drwx------  2 root root 16384 heinä   1 11:34 lost+found
+-rw-r--r--  1 root root     0 heinä   1 11:43 test.txt
+$
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;</content><author><name></name></author><category term="encryption" /><category term="LUKS" /><summary type="html"></summary></entry><entry><title type="html">Saving files from a (potentially) failing hard drive</title><link href="http://localhost:4000/2020/06/30/safe-files-failing-hdd.html" rel="alternate" type="text/html" title="Saving files from a (potentially) failing hard drive" /><published>2020-06-30T00:00:00+03:00</published><updated>2020-06-30T00:00:00+03:00</updated><id>http://localhost:4000/2020/06/30/safe-files-failing-hdd</id><content type="html" xml:base="http://localhost:4000/2020/06/30/safe-files-failing-hdd.html">&lt;p&gt;I recently helped a friend whose laptop had taken some physical damage, and the laptop’s hard drive seemed to have some issues after that.&lt;/p&gt;
+
+&lt;p&gt;This was a classic situation with important files on the disk and no backups. The disk included OS installation, so booting from it and copying files to an external device seemed a bit too risky. I then promised to try to back up the files carefully as it seemed that the disk and its content could be lost soon.&lt;/p&gt;
+
+&lt;h1 id=&quot;probe-an-image-not-the-disk&quot;&gt;Probe an image, not the disk&lt;/h1&gt;
+
+&lt;p&gt;Like said, the state of the disk I had to work with was potentially unstable, so I wanted to minimize the need to work direct with it.&lt;/p&gt;
+
+&lt;p&gt;First, I removed the disk from my friend’s laptop and connected it to my laptop using a USB-SATA adapter. Then I took an image of the whole disk using GNU ddrescue.&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;ddrescue /dev/sdb /srv/disk_image.raw /srv/log_file &lt;span class=&quot;nt&quot;&gt;--try-again&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;--force&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;--verbose&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;To be honest, I’m not sure if these ddrescue options were optimal for this scenario, but at least I was able to copy the whole drive. See ddrescue’s &lt;a href=&quot;https://www.gnu.org/software/ddrescue/manual/ddrescue_manual.html&quot;&gt;man page&lt;/a&gt; to see different options.&lt;/p&gt;
+
+&lt;p&gt;Next, I created a copy of the image to make sure that I don’t need to try to create a new image if I screw something up.&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;sudo dd &lt;/span&gt;&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/srv/disk_image.raw &lt;span class=&quot;nv&quot;&gt;of&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;/srv/disk_image.raw.original
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h1 id=&quot;find-and-mount-the-partitions&quot;&gt;Find and mount the partition(s)&lt;/h1&gt;
+
+&lt;p&gt;Now I had to find the partition where the needed data is, so I can mount it from the image, and try to copy all files in it.&lt;/p&gt;
+
+&lt;p&gt;Some command outputs in the below sections are not from the actual image I was working with, but as I’m writing this post afterward, I created a small dummy file to demonstrate these parts of the process.&lt;/p&gt;
+
+&lt;h2 id=&quot;find-a-partition&quot;&gt;Find a partition&lt;/h2&gt;
+
+&lt;p&gt;Listing partitions with &lt;code class=&quot;highlighter-rouge&quot;&gt;fdisk -l &amp;lt;image file&amp;gt;&lt;/code&gt;:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$ sudo fdisk -l disk_image.raw
+Disk disk_image.raw: 1000 MiB, 1048576000 bytes, 2048000 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x65a4907d
+
+Device          Boot  Start     End Sectors  Size Id Type
+disk_image.raw1        2048  817151  815104  398M  7 HPFS/NTFS/exFAT
+disk_image.raw2      817152 2047999 1230848  601M  7 HPFS/NTFS/exFAT
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Sometimes it might be clear which partition is the “target” and sometimes not. For this demonstration, with this dummy image file, let’s just say that I knew that the second partition is the one which content I needed to access.&lt;/p&gt;
+
+&lt;p&gt;With the above information, it’s possible to calculate the start sector of the targeted partition: &lt;code class=&quot;highlighter-rouge&quot;&gt;512*817152=418381824&lt;/code&gt;.&lt;/p&gt;
+
+&lt;h2 id=&quot;mounting-partitions-from-the-disk-image&quot;&gt;Mounting partitions from the disk image&lt;/h2&gt;
+
+&lt;p&gt;The disk image file needs to be attached to a loop device, so it can be mounted as a block device. &lt;code class=&quot;highlighter-rouge&quot;&gt;losetup -a&lt;/code&gt; can be used to check what loop devices already exist. &lt;code class=&quot;highlighter-rouge&quot;&gt;mknod&lt;/code&gt; can be used to create a new loop device.&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo mknod -m640 /dev/loop9 b 7 8
+sudo losetup -o 418381824 /dev/loop9 disk_image.raw
+sudo mount /dev/loop9 /mnt/
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Notice that &lt;code class=&quot;highlighter-rouge&quot;&gt;-o 418381824&lt;/code&gt; is the partition’s start sector which I calculated previously.&lt;/p&gt;
+
+&lt;p&gt;Now as I have the partition mounted I can just regularly copy files from the mountpoint with some tool like &lt;code class=&quot;highlighter-rouge&quot;&gt;rsync&lt;/code&gt;:&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;rsync &lt;span class=&quot;nt&quot;&gt;-vr&lt;/span&gt; /mnt/ /dest/path
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h1 id=&quot;some-pointers&quot;&gt;Some pointers&lt;/h1&gt;
+
+&lt;p&gt;Even though I used a dummy image file in this post, the case with my friend’s disk worked out the same way that there eventually were no issues while working with the disk and the image. If you have a case where the situation is not this good then you may want to check, for example, &lt;a href=&quot;https://www.cgsecurity.org/wiki/TestDisk&quot;&gt;TestDisk&lt;/a&gt; from CGSecurity.&lt;/p&gt;
+
+&lt;p&gt;When creating disk images, remember to verify that your destination has enough space for the image.&lt;/p&gt;</content><author><name></name></author><category term="ddrescue" /><summary type="html"></summary></entry><entry><title type="html">Debugging Ansible modules</title><link href="http://localhost:4000/2020/04/23/debug_with_ansible.html" rel="alternate" type="text/html" title="Debugging Ansible modules" /><published>2020-04-23T00:00:00+03:00</published><updated>2020-04-23T00:00:00+03:00</updated><id>http://localhost:4000/2020/04/23/debug_with_ansible</id><content type="html" xml:base="http://localhost:4000/2020/04/23/debug_with_ansible.html">&lt;p&gt;This is a small tutorial where I show how to dive inside Ansible’s python modules in error debugging. This has been a useful trick when I have had an error with a module, and no matter how much verbosity I add, or use &lt;code class=&quot;highlighter-rouge&quot;&gt;DEBUG=1&lt;/code&gt;, I still couldn’t figure out what was the reason for the error. I’m sure there’s more official way to debug modules, but so far, this way has covered my needs.&lt;/p&gt;
 
 &lt;p&gt;I’m not explaining regular Ansible usage, so following this requires some prior knowledge.&lt;/p&gt;
 
