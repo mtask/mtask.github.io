@@ -15,7 +15,7 @@ What the script does in practice:
    1. Find related username based on the `LogonId` information that is returned in the event
    2. Find SID of the username (tested only with non-ad machine/users)
 
-Below is the script. It most likely is more complex that it could be, but at least is seems to work as it should.
+Below is the script. It most likely is unnecessarily complex, but at least is seems to work as it should.
 
 ```powershell
 # Get win32_LogOnSession events
