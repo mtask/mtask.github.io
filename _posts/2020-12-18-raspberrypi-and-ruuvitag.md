@@ -5,7 +5,7 @@ tags: ["ruuvi","raspberry"]
 ---
 
 {:toc}
-This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check [this](https://ruuvi.com/) if you don't know what a Ruuvi tag is.
+This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check [this](https://ruuvi.com/) if you don't know what Ruuvi tag is.
 
 The overall result is:
 
@@ -22,7 +22,8 @@ The overall result is:
 
 # Initial setup
 
-The are many guides showing how to deploy an OS into a Raspberry Pi, so use google if you need one. The optimal starting point is that your Pi has a static IP, and you can SSH into it. I have used the latest Raspbian Lite OS image in the examples of this post.
+Start [here](https://www.raspberrypi.org/documentation/) if you need help with the initial Raspberry Pi setup.
+The optimal starting point for this post is that you can SSH into your Pi. I have used the latest Raspbian Lite OS image in the examples of this post.
 
 # Install dependencies
 
@@ -152,7 +153,7 @@ python3 ruuvi/lib/python3.7/site-packages/ruuvitag_sensor -f
 ```
 
 # Flask API and UI
-
+[The Flask web application framework](https://palletsprojects.com/p/flask/) is an excellent choice when you want to get something quickly up and running.
 First start by creating the below directory structure under `/home/pi/flasktag`. 
 
 ```
