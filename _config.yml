@@ -43,7 +43,7 @@ plugins:
 #   - vendor/cache/
 #   - vendor/gems/
 #   - vendor/ruby/
-
+future: true
 header_pages:
   - 'index.md'
   - 'about.md'

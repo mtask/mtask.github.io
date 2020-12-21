@@ -1,5 +1,5 @@
 ---
-title: 'Monitoring login events with WMI'
+title: 'Monitoring Windows login events with WMI'
 layout: 'post'
 tags: ["windows","powershell","wmi"]
 ---

@@ -7,8 +7,8 @@
 <meta name="generator" content="Jekyll v3.8.7" />
 <meta property="og:title" content="Monitoring Ruuvi tags with Raspberry Pi" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check this if you don’t know what a Ruuvi tag is." />
-<meta property="og:description" content="This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check this if you don’t know what a Ruuvi tag is." />
+<meta name="description" content="This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check this if you don’t know what Ruuvi tag is." />
+<meta property="og:description" content="This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check this if you don’t know what Ruuvi tag is." />
 <link rel="canonical" href="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html" />
 <meta property="og:url" content="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html" />
 <meta property="og:site_name" content="Blog Without Name" />
@@ -17,7 +17,7 @@
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Monitoring Ruuvi tags with Raspberry Pi" />
 <script type="application/ld+json">
-{"description":"This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check this if you don’t know what a Ruuvi tag is.","url":"http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html","@type":"BlogPosting","headline":"Monitoring Ruuvi tags with Raspberry Pi","dateModified":"2020-12-18T00:00:00+02:00","datePublished":"2020-12-18T00:00:00+02:00","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html"},"@context":"https://schema.org"}</script>
+{"description":"This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check this if you don’t know what Ruuvi tag is.","url":"http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html","@type":"BlogPosting","headline":"Monitoring Ruuvi tags with Raspberry Pi","dateModified":"2020-12-18T00:00:00+02:00","datePublished":"2020-12-18T00:00:00+02:00","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html"},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Blog Without Name" /></head>
 <body><header class="site-header" role="banner">
@@ -47,7 +47,7 @@
   </header>
   <div id="toc"></div>
   <div class="post-content e-content" itemprop="articleBody">
-    <p>This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check <a href="https://ruuvi.com/">this</a> if you don’t know what a Ruuvi tag is.</p>
+    <p>This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check <a href="https://ruuvi.com/">this</a> if you don’t know what Ruuvi tag is.</p>
 
 <p>The overall result is:</p>
 
@@ -74,7 +74,8 @@
 
 <h1 id="initial-setup">Initial setup</h1>
 
-<p>The are many guides showing how to deploy an OS into a Raspberry Pi, so use google if you need one. The optimal starting point is that your Pi has a static IP, and you can SSH into it. I have used the latest Raspbian Lite OS image in the examples of this post.</p>
+<p>Start <a href="https://www.raspberrypi.org/documentation/">here</a> if you need help with the initial Raspberry Pi setup.
+The optimal starting point for this post is that you can SSH into your Pi. I have used the latest Raspbian Lite OS image in the examples of this post.</p>
 
 <h1 id="install-dependencies">Install dependencies</h1>
 
@@ -199,8 +200,8 @@
 </code></pre></div></div>
 
 <h1 id="flask-api-and-ui">Flask API and UI</h1>
-
-<p>First start by creating the below directory structure under <code class="highlighter-rouge">/home/pi/flasktag</code>.</p>
+<p><a href="https://palletsprojects.com/p/flask/">The Flask web application framework</a> is an excellent choice when you want to get something quickly up and running.
+First start by creating the below directory structure under <code class="highlighter-rouge">/home/pi/flasktag</code>.</p>
 
 <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>flasktag
 ├── forms

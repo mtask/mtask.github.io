@@ -1,4 +1,215 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-12-18T18:41:05+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi</title><link href="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi" /><published>2020-12-18T00:00:00+02:00</published><updated>2020-12-18T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag</id><content type="html" xml:base="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html">&lt;p&gt;This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check &lt;a href=&quot;https://ruuvi.com/&quot;&gt;this&lt;/a&gt; if you don’t know what a Ruuvi tag is.&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-12-21T23:23:15+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi (part 2)</title><link href="http://localhost:4000/2020/12/23/raspberrypi-and-ruuvitag-part-two.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi (part 2)" /><published>2020-12-23T00:00:00+02:00</published><updated>2020-12-23T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/23/raspberrypi-and-ruuvitag-part-two</id><content type="html" xml:base="http://localhost:4000/2020/12/23/raspberrypi-and-ruuvitag-part-two.html">&lt;p&gt;This post continues with the topic of the &lt;a href=&quot;https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html&quot;&gt;previous post&lt;/a&gt; where I created a small &lt;a href=&quot;https://palletsprojects.com/p/flask/&quot;&gt;Flask&lt;/a&gt; based API and User Interface to view &lt;a href=&quot;https://ruuvi.com/&quot;&gt;Ruuvi tag&lt;/a&gt; data. 
+I continue with the Flask based API concept, but now it can be used as a data source for &lt;a href=&quot;https://grafana.com/&quot;&gt;Grafana&lt;/a&gt;.
+I made a small app which I unimaginatively named as RuuviPi. This provides an API which from Grafana can pull Ruuvi tag data and visualize it.&lt;/p&gt;
+
+&lt;p&gt;There really is not any Rapsberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
+its integrated Bluetooth adapter.&lt;/p&gt;
+
+&lt;p&gt;The end goal is to deploy the RuuviPi API as systemd service and visualize some Ruuvi data in Grafana.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/ruuviPi1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The architecture is going to look like this:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/RuuviPi4.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;initial-setup&quot;&gt;Initial setup&lt;/h2&gt;
+
+&lt;p&gt;Like in the &lt;a href=&quot;https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html&quot;&gt;previous post&lt;/a&gt;, the expected starting point is
+to have Rapsberry Pi running and you are able access it e.g. via SSH. Following this post does not expect any setup done in the previous part.&lt;/p&gt;
+
+&lt;h3 id=&quot;install-dependencies&quot;&gt;Install dependencies&lt;/h3&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Bluetooth tools&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;apt &lt;span class=&quot;nb&quot;&gt;install &lt;/span&gt;bluez bluez-hcidump
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;Python dependencies&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo apt-get install python3-pip
+pip3 install ruuvitag_sensor flask python-dateutil gunicorn
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;deploy-ruuvipi&quot;&gt;Deploy RuuviPi&lt;/h2&gt;
+
+&lt;h3 id=&quot;installation&quot;&gt;Installation&lt;/h3&gt;
+
+&lt;p&gt;Download the app from Github and extract it into some place you like. In the below example I’m using &lt;code class=&quot;highlighter-rouge&quot;&gt;pi&lt;/code&gt; users home directory. 
+Remember to change you paths in other steps if you are using something else.&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;cd&lt;/span&gt; /home/pi/
+wget &lt;span class=&quot;nt&quot;&gt;-O&lt;/span&gt; ruuvipi.zip https://github.com/mtask/RuuviPi/archive/main.zip
+unzip ruuvipi.zip
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;configuration&quot;&gt;Configuration&lt;/h3&gt;
+
+&lt;p&gt;Open (&lt;code class=&quot;highlighter-rouge&quot;&gt;vi(m)&lt;/code&gt;/&lt;code class=&quot;highlighter-rouge&quot;&gt;nano&lt;/code&gt;) &lt;code class=&quot;highlighter-rouge&quot;&gt;/home/pi/RuuviPi-main/src/instance/conf.py&lt;/code&gt; and change the following:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Configure &lt;code class=&quot;highlighter-rouge&quot;&gt;TAGS&lt;/code&gt; to include MAC address of your Ruuvi tag as value for “text” and “value” keys. Use the same format with MACs that has been used in the example. You can add multiple tags by just adding new dictionary to list. E.g. &lt;code class=&quot;highlighter-rouge&quot;&gt;TAGS = [ { &quot;text&quot;: &quot;e4c7751d5230&quot;, &quot;value&quot;: &quot;e4c7751d5230&quot;}, { &quot;text&quot;: &quot;e4c7751d5231&quot;, &quot;value&quot;: &quot;e4c7751d5231&quot;} ]&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;Specify data that you want to use from Ruuvi’s sensors in &lt;code class=&quot;highlighter-rouge&quot;&gt;DATA_COLUMNS&lt;/code&gt;. Options are&lt;/li&gt;
+  &lt;li&gt;Set some suitable database filepath in &lt;code class=&quot;highlighter-rouge&quot;&gt;DATABASE&lt;/code&gt;. Only restriction is that the path needs to be writable for the user that is running the app.&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;DATA_FETCH_DELAY&lt;/code&gt; specifies in seconds how often the app queries data from Ruuvi tag(s).&lt;/li&gt;
+  &lt;li&gt;&lt;code class=&quot;highlighter-rouge&quot;&gt;LOG_FILE&lt;/code&gt; specifies an absolute path for the app to write logging events. If not specified then the app writes logging events to console.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h3 id=&quot;test-the-api&quot;&gt;Test the API&lt;/h3&gt;
+
+&lt;p&gt;Now you can cd into &lt;code class=&quot;highlighter-rouge&quot;&gt;/home/pi/RuuviPi-main/src/&lt;/code&gt; and run &lt;code class=&quot;highlighter-rouge&quot;&gt;python3 ruuviDataSource.py&lt;/code&gt;. 
+This should start Flask development server. While keeping the app running you can run &lt;code class=&quot;highlighter-rouge&quot;&gt;curl -I http://127.0.0.1:8080/&lt;/code&gt; and check that you get &lt;code class=&quot;highlighter-rouge&quot;&gt;HTTP/1.1 200 OK&lt;/code&gt; response.&lt;/p&gt;
+
+&lt;p&gt;Note that ruuvitag_sensor library spawns sudo processes to extract Bluetooth data with &lt;code class=&quot;highlighter-rouge&quot;&gt;hcitool&lt;/code&gt; command. 
+Meaning that unless you allow all sudo commands without providing password then the user running the app should have &lt;code class=&quot;highlighter-rouge&quot;&gt;NOPASSWD&lt;/code&gt; for the &lt;code class=&quot;highlighter-rouge&quot;&gt;hcitool&lt;/code&gt;. For example:&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;pi &lt;span class=&quot;nv&quot;&gt;ALL&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;NOPASSWD: /usr/bin/hcitool
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;run-the-api-as-systemd-service&quot;&gt;Run the API as Systemd service&lt;/h3&gt;
+
+&lt;p&gt;Create the following Systemd unit file &lt;code class=&quot;highlighter-rouge&quot;&gt;/etc/systemd/system/ruuvipi.service&lt;/code&gt; (requires sudo/root) and add the below content.&lt;/p&gt;
+
+&lt;div class=&quot;language-ini highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nn&quot;&gt;[Unit]&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;Description&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;RuuviPi service&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;After&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;network.target&lt;/span&gt;
+
+&lt;span class=&quot;nn&quot;&gt;[Service]&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;# the specific user that our service will run as
+&lt;/span&gt;&lt;span class=&quot;py&quot;&gt;User&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;pi&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;Group&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;pi&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;RuntimeDirectory&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;gunicorn&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;WorkingDirectory&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;/home/pi/RuuviPi-main/src/&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ExecStart&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;/home/pi/.local/bin/gunicorn --bind 127.0.0.1:8080 wsgi:app&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ExecReload&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;/bin/kill -s HUP $MAINPID&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;KillMode&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;mixed&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;TimeoutStopSec&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;5&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;PrivateTmp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;true&lt;/span&gt;
+
+&lt;span class=&quot;nn&quot;&gt;[Install]&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;WantedBy&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;multi-user.target&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Use &lt;code class=&quot;highlighter-rouge&quot;&gt;which gunicorn&lt;/code&gt; command to check &lt;a href=&quot;https://gunicorn.org/&quot;&gt;gunicorn’s&lt;/a&gt; location and set the correct value in &lt;code class=&quot;highlighter-rouge&quot;&gt;ExecStart=&lt;/code&gt; row. If you have used or want to use other user than &lt;code class=&quot;highlighter-rouge&quot;&gt;pi&lt;/code&gt; then ensure that the user has permissions to access RuuviPi files.
+When the unit file is saved run the following commands to enable and start the service. First ensure that you are not running the API manually anymore.&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo systemctl daemon-reload
+sudo systemctl start ruuvipi.service
+sudo systemctl enabl ruuvipi.service
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Now if you check &lt;code class=&quot;highlighter-rouge&quot;&gt;sudo systemctl status ruuvipi.service&lt;/code&gt; it should show that the service is &lt;code class=&quot;highlighter-rouge&quot;&gt;active (running)&lt;/code&gt;.
+If it’s not running then check &lt;code class=&quot;highlighter-rouge&quot;&gt;sudo journalctl -f -u ruuvipi.service&lt;/code&gt; and the specified log file for any errors.&lt;/p&gt;
+
+&lt;h2 id=&quot;deploy-grafana&quot;&gt;Deploy Grafana&lt;/h2&gt;
+
+&lt;p&gt;I’m pretty new to Grafana&lt;/p&gt;
+
+&lt;h3 id=&quot;installation-1&quot;&gt;Installation&lt;/h3&gt;
+
+&lt;p&gt;Grafana has good and simple installation guide for Raspberry Pi &lt;a href=&quot;https://grafana.com/tutorials/install-grafana-on-raspberry-pi/#3&quot;&gt;here&lt;/a&gt;. Below are just commands from it and commands to install JSON plugin which is needed to visualize Ruuvi tag data with RuuviPi API.&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;wget &lt;span class=&quot;nt&quot;&gt;-q&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-O&lt;/span&gt; - https://packages.grafana.com/gpg.key | &lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;apt-key add -
+&lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;deb https://packages.grafana.com/oss/deb stable main&quot;&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;sudo tee&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-a&lt;/span&gt; /etc/apt/sources.list.d/grafana.list
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;apt-get update
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;apt-get &lt;span class=&quot;nb&quot;&gt;install&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-y&lt;/span&gt; grafana
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;systemctl &lt;span class=&quot;nb&quot;&gt;enable &lt;/span&gt;grafana-server
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;systemctl start grafana-server
+&lt;span class=&quot;c&quot;&gt;#Run &quot;curl -I http://127.0.0.1:3000&quot; and check that you get 302 redirect to &quot;/login&quot;&lt;/span&gt;
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;grafana-cli plugins &lt;span class=&quot;nb&quot;&gt;install &lt;/span&gt;simpod-json-datasource
+&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;systemctl restart grafana-server
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Grafana should now answer in &lt;code class=&quot;highlighter-rouge&quot;&gt;http://&amp;lt;Pi's IP&amp;gt;:3000&lt;/code&gt; and login credentials are &lt;code class=&quot;highlighter-rouge&quot;&gt;admin:admin&lt;/code&gt;. First login prompts to change the password.&lt;/p&gt;
+
+&lt;h3 id=&quot;configuration-1&quot;&gt;Configuration&lt;/h3&gt;
+
+&lt;p&gt;I’m pretty new to Grafana myself, so I’m just going to show a simple example dashboard and panel that I have tried myself.&lt;/p&gt;
+
+&lt;h4 id=&quot;create-data-source&quot;&gt;Create Data Source&lt;/h4&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Log in to Grafana&lt;/li&gt;
+  &lt;li&gt;Select “Configuration” –&amp;gt; “Data Sources” –&amp;gt; “Add data source”&lt;/li&gt;
+  &lt;li&gt;Search for “JSON” and select it&lt;/li&gt;
+  &lt;li&gt;Give it name “Ruuvi” and configure like in the below image
+  &lt;img src=&quot;/assets/ruuvPi2.png&quot; alt=&quot;&quot; /&gt;&lt;/li&gt;
+  &lt;li&gt;“Save and Test”
+    &lt;ul&gt;
+      &lt;li&gt;You should see a green pop-up saying “Data source is working”&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h4 id=&quot;create-dashboard-and-panel&quot;&gt;Create Dashboard and Panel&lt;/h4&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Select “+” –&amp;gt; “Dashboard”&lt;/li&gt;
+  &lt;li&gt;Select “+ Add new panel”&lt;/li&gt;
+  &lt;li&gt;Select “Ruuvi” data source.&lt;/li&gt;
+  &lt;li&gt;Under series “A” select “Format As: Table”&lt;/li&gt;
+  &lt;li&gt;Select your Ruuvi tag in “Metric”
+    &lt;ul&gt;
+      &lt;li&gt;There’s an issue with the &lt;code class=&quot;highlighter-rouge&quot;&gt;/search&lt;/code&gt; endpoint of RuuviPi if you don’t see tag(s) here.&lt;/li&gt;
+      &lt;li&gt;You can use &lt;code class=&quot;highlighter-rouge&quot;&gt;curl -X POST http://127.0.0.1:8080/search&lt;/code&gt; command to verify that the API returns something like &lt;code class=&quot;highlighter-rouge&quot;&gt;[{&quot;text&quot;:&quot;e4c7751d5230&quot;,&quot;value&quot;:&quot;e4c7751d5230&quot;}]&lt;/code&gt;.&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;Select “Query Inspector” and hit “Refresh”
+    &lt;ul&gt;
+      &lt;li&gt;In the bottom part of the Query Inspector you should see response from RuuviPi that includes tag’s data.&lt;/li&gt;
+      &lt;li&gt;You should also see some data visualized in the default panel.
+&lt;img src=&quot;/assets/ruuviPi3.png&quot; alt=&quot;&quot; /&gt;&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;deploy-nginx&quot;&gt;Deploy Nginx&lt;/h2&gt;
+
+&lt;p&gt;I’m using &lt;a href=&quot;https://www.nginx.com/resources/wiki/&quot;&gt;Nginx&lt;/a&gt; as a reverse proxy in front of Grafana. 
+The example configuration will be for plaintext HTTP without involving domain names, but of course, HTTPS is always recommended. Check &lt;a href=&quot;https://ssl-config.mozilla.org/&quot;&gt;this&lt;/a&gt; for example HTTPS configuration.&lt;/p&gt;
+
+&lt;h3 id=&quot;installation-2&quot;&gt;Installation&lt;/h3&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;apt &lt;span class=&quot;nb&quot;&gt;install &lt;/span&gt;nginx
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;configuration-2&quot;&gt;Configuration&lt;/h3&gt;
+
+&lt;p&gt;Create file &lt;code class=&quot;highlighter-rouge&quot;&gt;/etc/nginx/sites-enabled/&amp;lt;you-raspbery-pi-IP&amp;gt;&lt;/code&gt; and add the below content.
+Ensure that you change &lt;code class=&quot;highlighter-rouge&quot;&gt;&amp;lt;you-raspbery-pi-IP&amp;gt;&lt;/code&gt; part with the actual IP address of your Pi.&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;server {
+  listen 80;
+  server_name &amp;lt;you-raspbery-pi-IP&amp;gt;;
+  server_tokens off;
+
+  location / {
+   proxy_pass http://localhost:3000/;
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Edit &lt;code class=&quot;highlighter-rouge&quot;&gt;/etc/grafana/grafana.ini&lt;/code&gt; file and add line &lt;code class=&quot;highlighter-rouge&quot;&gt;domain = &amp;lt;you-raspbery-pi-IP&amp;gt;&lt;/code&gt; under &lt;code class=&quot;highlighter-rouge&quot;&gt;[server]&lt;/code&gt; section.&lt;/p&gt;
+
+&lt;p&gt;Restart Grafana and Nginx.&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo systemctl restart grafana-server
+sudo systemctl restart nginx
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;As a final touch I will setup UFW firewall and allow only SSH and HTTP in.&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo apt install ufw
+sudo ufw default allow outgoing
+sudo ufw default deny incoming
+sudo ufw allow ssh
+sudo ufw allow http
+sudo ufw enable # press y
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;</content><author><name></name></author><category term="ruuvi" /><category term="raspberry" /><category term="grafana" /><summary type="html"></summary></entry><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi</title><link href="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi" /><published>2020-12-18T00:00:00+02:00</published><updated>2020-12-18T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag</id><content type="html" xml:base="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html">&lt;p&gt;This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check &lt;a href=&quot;https://ruuvi.com/&quot;&gt;this&lt;/a&gt; if you don’t know what Ruuvi tag is.&lt;/p&gt;
 
 &lt;p&gt;The overall result is:&lt;/p&gt;
 
@@ -25,7 +236,8 @@
 
 &lt;h1 id=&quot;initial-setup&quot;&gt;Initial setup&lt;/h1&gt;
 
-&lt;p&gt;The are many guides showing how to deploy an OS into a Raspberry Pi, so use google if you need one. The optimal starting point is that your Pi has a static IP, and you can SSH into it. I have used the latest Raspbian Lite OS image in the examples of this post.&lt;/p&gt;
+&lt;p&gt;Start &lt;a href=&quot;https://www.raspberrypi.org/documentation/&quot;&gt;here&lt;/a&gt; if you need help with the initial Raspberry Pi setup.
+The optimal starting point for this post is that you can SSH into your Pi. I have used the latest Raspbian Lite OS image in the examples of this post.&lt;/p&gt;
 
 &lt;h1 id=&quot;install-dependencies&quot;&gt;Install dependencies&lt;/h1&gt;
 
@@ -150,8 +362,8 @@
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
 &lt;h1 id=&quot;flask-api-and-ui&quot;&gt;Flask API and UI&lt;/h1&gt;
-
-&lt;p&gt;First start by creating the below directory structure under &lt;code class=&quot;highlighter-rouge&quot;&gt;/home/pi/flasktag&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;https://palletsprojects.com/p/flask/&quot;&gt;The Flask web application framework&lt;/a&gt; is an excellent choice when you want to get something quickly up and running.
+First start by creating the below directory structure under &lt;code class=&quot;highlighter-rouge&quot;&gt;/home/pi/flasktag&lt;/code&gt;.&lt;/p&gt;
 
 &lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;flasktag
 ├── forms
@@ -387,7 +599,7 @@ When you submit the form, then you should see something like this.&lt;/p&gt;
 
 &lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;# cron job to populate the data&lt;/span&gt;
 &lt;span class=&quot;k&quot;&gt;*&lt;/span&gt;/5 &lt;span class=&quot;k&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;*&lt;/span&gt; /usr/bin/python3 /home/pi/tag_to_sqlite.py &lt;span class=&quot;s2&quot;&gt;&quot;&amp;lt;tag's MAC address&amp;gt;&quot;&lt;/span&gt;
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;</content><author><name></name></author><category term="ruuvi" /><category term="raspberry" /><summary type="html">This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check this if you don’t know what a Ruuvi tag is.</summary></entry><entry><title type="html">Monitoring login events with WMI</title><link href="http://localhost:4000/2020/11/29/monitor-login-events-wmi.html" rel="alternate" type="text/html" title="Monitoring login events with WMI" /><published>2020-11-29T00:00:00+02:00</published><updated>2020-11-29T00:00:00+02:00</updated><id>http://localhost:4000/2020/11/29/monitor-login-events-wmi</id><content type="html" xml:base="http://localhost:4000/2020/11/29/monitor-login-events-wmi.html">&lt;p&gt;This post shows a small Powershell script that I created to capture login events using WMI event subscription in Windows.
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;</content><author><name></name></author><category term="ruuvi" /><category term="raspberry" /><summary type="html">This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check this if you don’t know what Ruuvi tag is.</summary></entry><entry><title type="html">Monitoring Windows login events with WMI</title><link href="http://localhost:4000/2020/11/29/monitor-login-events-wmi.html" rel="alternate" type="text/html" title="Monitoring Windows login events with WMI" /><published>2020-11-29T00:00:00+02:00</published><updated>2020-11-29T00:00:00+02:00</updated><id>http://localhost:4000/2020/11/29/monitor-login-events-wmi</id><content type="html" xml:base="http://localhost:4000/2020/11/29/monitor-login-events-wmi.html">&lt;p&gt;This post shows a small Powershell script that I created to capture login events using WMI event subscription in Windows.
 Note that this method only applies to current Powershell session and is not persistent. 
 I also show more persistent method using Managed Object Format and WMI repository.&lt;/p&gt;
 
