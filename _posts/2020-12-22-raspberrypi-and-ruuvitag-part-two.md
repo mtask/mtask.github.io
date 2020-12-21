@@ -101,8 +101,9 @@ PrivateTmp=true
 WantedBy=multi-user.target
 ```
 
-Use `which gunicorn` command to check [gunicorn's](https://gunicorn.org/) location and set the correct value in `ExecStart=` row. If you have used or want to use other user than `pi` then ensure that the user has permissions to access RuuviPi files.
-When the unit file is saved run the following commands to enable and start the service. First ensure that you are not running the API manually anymore.
+Use `which gunicorn` command to check [gunicorn's](https://gunicorn.org/) location and set the correct value in `ExecStart=` row. With different user that the `pi`, ensure that the user has permissions to access RuuviPi files.
+
+Run the following commands to enable and start the service. First, ensure that you are not running the API manually anymore.
 
 ```
 sudo systemctl daemon-reload
