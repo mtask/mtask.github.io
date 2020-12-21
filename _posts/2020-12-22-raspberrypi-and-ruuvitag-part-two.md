@@ -158,8 +158,9 @@ Grafana should now answer in `http://<Pi's IP>:3000` and login credentials are `
    * You can use `curl -X POST http://127.0.0.1:8080/search` command to verify that the API returns something like `[{"text":"e4c7751d5230","value":"e4c7751d5230"}]`.
 6. Select "Query Inspector" and hit "Refresh"
    * In the bottom part of the Query Inspector you should see response from RuuviPi that includes tag's data.
-   * You should also see some data visualized in the default panel.
+   * You should also see some data visualized in the panel already.
    ![](/assets/ruuviPi3.png)
+7. Save the panel and the dashboard
 
 ## Deploy Nginx
 
