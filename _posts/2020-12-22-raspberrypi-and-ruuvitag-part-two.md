@@ -10,8 +10,8 @@ This post continues with the topic of the [previous post](https://mtask.github.i
 I continue with the Flask based API concept, but now it can be used as a data source for [Grafana](https://grafana.com/).
 I made a small app which I unimaginatively named as [RuuviPi](https://github.com/mtask/RuuviPi). This provides an API which from Grafana can pull Ruuvi tag data and visualize it.
 
-There really is nothing Raspberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
-its integrated Bluetooth adapter.
+There really is nothing Raspberry Pi specific in this, so technically you can use any Linux distribution and hardware. However, to follow all commands, it has to be some Debian flavored distro.
+I have tested everything with Raspberry Pi model 3 running Raspbian lite OS. 
 
 The end goal is to deploy the RuuviPi API as systemd service and visualize some Ruuvi data in Grafana.
 
@@ -121,6 +121,8 @@ If it's not running then check `sudo journalctl -f -u ruuvipi.service` and the s
 ## Deploy Grafana
 
 I'm pretty new to Grafana myself, so I'm just showing a simple dashboard and panel, which I have been using for testing.
+The RuuviPi API currently supports the table data format and not the time-series. 
+I'm not quite sure if there's any good reason to add support for time-series as the table format seems to be enough for what I need.
 
 ### Installation
 
