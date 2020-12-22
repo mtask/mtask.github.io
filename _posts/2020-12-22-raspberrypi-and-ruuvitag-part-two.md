@@ -101,7 +101,9 @@ PrivateTmp=true
 WantedBy=multi-user.target
 ```
 
-Use `which gunicorn` command to check [gunicorn's](https://gunicorn.org/) location and set the correct value in `ExecStart=` row. With different user that the `pi`, ensure that the user has permissions to access RuuviPi files.
+Use `which gunicorn` command to check [gunicorn's](https://gunicorn.org/) location and set the correct value in `ExecStart=` row. 
+
+With a different user than the `pi` user in `User=` section, ensure that the user has permissions to access RuuviPi files. Usually you would want to use seperate service account without shell access.
 
 Run the following commands to enable and start the service. First, ensure that you are not running the API manually anymore.
 
