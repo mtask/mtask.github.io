@@ -50,7 +50,7 @@
     
 <p>This post continues with the topic of the <a href="https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html">previous post</a> where I created a small <a href="https://palletsprojects.com/p/flask/">Flask</a> based API and User Interface to view <a href="https://ruuvi.com/">Ruuvi tag</a> data. 
 I continue with the Flask based API concept, but now it can be used as a data source for <a href="https://grafana.com/">Grafana</a>.
-I made a small app which I unimaginatively named as RuuviPi. This provides an API which from Grafana can pull Ruuvi tag data and visualize it.</p>
+I made a small app which I unimaginatively named as <a href="https://github.com/mtask/RuuviPi">RuuviPi</a>. This provides an API which from Grafana can pull Ruuvi tag data and visualize it.</p>
 
 <p>There really is not any Rapsberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
 its integrated Bluetooth adapter.</p>
@@ -103,7 +103,7 @@ unzip ruuvipi.zip
 
 <ol>
   <li>Configure <code class="highlighter-rouge">TAGS</code> to include MAC address of your Ruuvi tag as value for “text” and “value” keys. Use the same format with MACs that has been used in the example. You can add multiple tags by just adding new dictionary to list. E.g. <code class="highlighter-rouge">TAGS = [ { "text": "e4c7751d5230", "value": "e4c7751d5230"}, { "text": "e4c7751d5231", "value": "e4c7751d5231"} ]</code></li>
-  <li>Specify data that you want to use from Ruuvi’s sensors in <code class="highlighter-rouge">DATA_COLUMNS</code>. Options are</li>
+  <li>Specify data that you want to use from Ruuvi’s sensors in <code class="highlighter-rouge">DATA_COLUMNS</code>. Options are time, data_format, humidity, temperature, pressure, acceleration, acceleration_x, acceleration_y, acceleration_z, tx_power, battery, movement_counter, measurement_sequence_number, and mac.</li>
   <li>Set some suitable database filepath in <code class="highlighter-rouge">DATABASE</code>. Only restriction is that the path needs to be writable for the user that is running the app.</li>
   <li><code class="highlighter-rouge">DATA_FETCH_DELAY</code> specifies in seconds how often the app queries data from Ruuvi tag(s).</li>
   <li><code class="highlighter-rouge">LOG_FILE</code> specifies an absolute path for the app to write logging events. If not specified then the app writes logging events to console.</li>
@@ -114,7 +114,7 @@ unzip ruuvipi.zip
 <p>Now you can cd into <code class="highlighter-rouge">/home/pi/RuuviPi-main/src/</code> and run <code class="highlighter-rouge">python3 ruuviDataSource.py</code>. 
 This should start Flask development server. While keeping the app running you can run <code class="highlighter-rouge">curl -I http://127.0.0.1:8080/</code> and check that you get <code class="highlighter-rouge">HTTP/1.1 200 OK</code> response.</p>
 
-<p>Note that ruuvitag_sensor library spawns sudo processes to extract Bluetooth data with <code class="highlighter-rouge">hcitool</code> command. 
+<p>Note that <a href="https://github.com/ttu/ruuvitag-sensor">ruuvitag_sensor library</a>, which does all the hard work, spawns sudo processes to extract Bluetooth data with <code class="highlighter-rouge">hcitool</code> command. 
 Meaning that unless you allow all sudo commands without providing password then the user running the app should have <code class="highlighter-rouge">NOPASSWD</code> for the <code class="highlighter-rouge">hcitool</code>. For example:</p>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>pi <span class="nv">ALL</span><span class="o">=</span>NOPASSWD: /usr/bin/hcitool
