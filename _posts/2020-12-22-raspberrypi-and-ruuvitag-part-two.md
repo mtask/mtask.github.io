@@ -24,7 +24,9 @@ The architecture is going to look like this:
 ## Initial setup
 
 Like in the [previous post](https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html), the expected starting point is
-to have Rapsberry Pi running and you are able access it e.g. via SSH. Following this post does not expect any setup done in the previous part.
+to have Raspberry Pi running and you are able access it e.g. via SSH. Following this post does not expect any setup done in the previous part.
+
+Every command and configuration done in this post are meant to be  done in your Raspberry Pi.
 
 ### Install dependencies
 
