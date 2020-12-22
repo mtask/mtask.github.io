@@ -10,7 +10,7 @@ This post continues with the topic of the [previous post](https://mtask.github.i
 I continue with the Flask based API concept, but now it can be used as a data source for [Grafana](https://grafana.com/).
 I made a small app which I unimaginatively named as [RuuviPi](https://github.com/mtask/RuuviPi). This provides an API which from Grafana can pull Ruuvi tag data and visualize it.
 
-There really is not any Rapsberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
+There really is not anything Rapsberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
 its integrated Bluetooth adapter.
 
 The end goal is to deploy the RuuviPi API as systemd service and visualize some Ruuvi data in Grafana.
@@ -41,11 +41,18 @@ sudo apt-get install python3-pip
 pip3 install ruuvitag_sensor flask python-dateutil gunicorn
 ```
 
+Note that the [ruuvitag_sensor library](https://github.com/ttu/ruuvitag-sensor), which does all the hard work here, spawns sudo processes to extract Bluetooth data with `hcitool` command. 
+Meaning that unless you allow all sudo commands without providing password then the user running the app should have `NOPASSWD` for the `hcitool`. For example:
+
+```bash
+pi ALL=NOPASSWD: /usr/bin/hcitool
+```
+
 ## Deploy RuuviPi
 
 ### Installation
 
-Download the app from Github and extract it into some place you like. In the below example I'm using `pi` users home directory. 
+Download the app from Github and extract it into some place you like. In the below example I'm using `pi` user's home directory. 
 Remember to change you paths in other steps if you are using something else.
 
 ```bash
@@ -68,13 +75,6 @@ Open (`vi(m)`/`nano`) `/home/pi/RuuviPi-main/src/instance/conf.py` and change th
 
 Now you can cd into `/home/pi/RuuviPi-main/src/` and run `python3 ruuviDataSource.py`. 
 This should start Flask development server. While keeping the app running you can run `curl -I http://127.0.0.1:8080/` and check that you get `HTTP/1.1 200 OK` response.
-
-Note that the [ruuvitag_sensor library](https://github.com/ttu/ruuvitag-sensor), which does all the hard work here, spawns sudo processes to extract Bluetooth data with `hcitool` command. 
-Meaning that unless you allow all sudo commands without providing password then the user running the app should have `NOPASSWD` for the `hcitool`. For example:
-
-```bash
-pi ALL=NOPASSWD: /usr/bin/hcitool
-```
 
 ### Run the API as Systemd service
 
