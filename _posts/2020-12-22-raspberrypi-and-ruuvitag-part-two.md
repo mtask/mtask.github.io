@@ -8,7 +8,7 @@ tags: ["ruuvi","raspberry", "grafana"]
 
 This post continues with the topic of the [previous post](https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html) where I created a small [Flask](https://palletsprojects.com/p/flask/) based API and User Interface to view [Ruuvi tag](https://ruuvi.com/) data. 
 I continue with the Flask based API concept, but now it can be used as a data source for [Grafana](https://grafana.com/).
-I made a small app which I unimaginatively named as RuuviPi. This provides an API which from Grafana can pull Ruuvi tag data and visualize it.
+I made a small app which I unimaginatively named as [RuuviPi](https://github.com/mtask/RuuviPi). This provides an API which from Grafana can pull Ruuvi tag data and visualize it.
 
 There really is not any Rapsberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
 its integrated Bluetooth adapter.
@@ -59,7 +59,7 @@ unzip ruuvipi.zip
 Open (`vi(m)`/`nano`) `/home/pi/RuuviPi-main/src/instance/conf.py` and change the following:
 
 1. Configure `TAGS` to include MAC address of your Ruuvi tag as value for "text" and "value" keys. Use the same format with MACs that has been used in the example. You can add multiple tags by just adding new dictionary to list. E.g. `TAGS = [ { "text": "e4c7751d5230", "value": "e4c7751d5230"}, { "text": "e4c7751d5231", "value": "e4c7751d5231"} ]`
-2. Specify data that you want to use from Ruuvi's sensors in `DATA_COLUMNS`. Options are 
+2. Specify data that you want to use from Ruuvi's sensors in `DATA_COLUMNS`. Options are time, data_format, humidity, temperature, pressure, acceleration, acceleration_x, acceleration_y, acceleration_z, tx_power, battery, movement_counter, measurement_sequence_number, and mac.
 3. Set some suitable database filepath in `DATABASE`. Only restriction is that the path needs to be writable for the user that is running the app.
 4. `DATA_FETCH_DELAY` specifies in seconds how often the app queries data from Ruuvi tag(s).
 5. `LOG_FILE` specifies an absolute path for the app to write logging events. If not specified then the app writes logging events to console.
