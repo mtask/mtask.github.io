@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-12-21T23:23:15+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi (part 2)</title><link href="http://localhost:4000/2020/12/23/raspberrypi-and-ruuvitag-part-two.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi (part 2)" /><published>2020-12-23T00:00:00+02:00</published><updated>2020-12-23T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/23/raspberrypi-and-ruuvitag-part-two</id><content type="html" xml:base="http://localhost:4000/2020/12/23/raspberrypi-and-ruuvitag-part-two.html">&lt;p&gt;This post continues with the topic of the &lt;a href=&quot;https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html&quot;&gt;previous post&lt;/a&gt; where I created a small &lt;a href=&quot;https://palletsprojects.com/p/flask/&quot;&gt;Flask&lt;/a&gt; based API and User Interface to view &lt;a href=&quot;https://ruuvi.com/&quot;&gt;Ruuvi tag&lt;/a&gt; data. 
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-12-22T10:08:13+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi (part 2)</title><link href="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi (part 2)" /><published>2020-12-22T00:00:00+02:00</published><updated>2020-12-22T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two</id><content type="html" xml:base="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html">&lt;p&gt;This post continues with the topic of the &lt;a href=&quot;https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html&quot;&gt;previous post&lt;/a&gt; where I created a small &lt;a href=&quot;https://palletsprojects.com/p/flask/&quot;&gt;Flask&lt;/a&gt; based API and User Interface to view &lt;a href=&quot;https://ruuvi.com/&quot;&gt;Ruuvi tag&lt;/a&gt; data. 
 I continue with the Flask based API concept, but now it can be used as a data source for &lt;a href=&quot;https://grafana.com/&quot;&gt;Grafana&lt;/a&gt;.
 I made a small app which I unimaginatively named as RuuviPi. This provides an API which from Grafana can pull Ruuvi tag data and visualize it.&lt;/p&gt;
 
@@ -94,8 +94,9 @@ Meaning that unless you allow all sudo commands without providing password then 
 &lt;span class=&quot;py&quot;&gt;WantedBy&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;multi-user.target&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;p&gt;Use &lt;code class=&quot;highlighter-rouge&quot;&gt;which gunicorn&lt;/code&gt; command to check &lt;a href=&quot;https://gunicorn.org/&quot;&gt;gunicorn’s&lt;/a&gt; location and set the correct value in &lt;code class=&quot;highlighter-rouge&quot;&gt;ExecStart=&lt;/code&gt; row. If you have used or want to use other user than &lt;code class=&quot;highlighter-rouge&quot;&gt;pi&lt;/code&gt; then ensure that the user has permissions to access RuuviPi files.
-When the unit file is saved run the following commands to enable and start the service. First ensure that you are not running the API manually anymore.&lt;/p&gt;
+&lt;p&gt;Use &lt;code class=&quot;highlighter-rouge&quot;&gt;which gunicorn&lt;/code&gt; command to check &lt;a href=&quot;https://gunicorn.org/&quot;&gt;gunicorn’s&lt;/a&gt; location and set the correct value in &lt;code class=&quot;highlighter-rouge&quot;&gt;ExecStart=&lt;/code&gt; row. With different user that the &lt;code class=&quot;highlighter-rouge&quot;&gt;pi&lt;/code&gt;, ensure that the user has permissions to access RuuviPi files.&lt;/p&gt;
+
+&lt;p&gt;Run the following commands to enable and start the service. First, ensure that you are not running the API manually anymore.&lt;/p&gt;
 
 &lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo systemctl daemon-reload
 sudo systemctl start ruuvipi.service
@@ -107,11 +108,11 @@ If it’s not running then check &lt;code class=&quot;highlighter-rouge&quot;&gt
 
 &lt;h2 id=&quot;deploy-grafana&quot;&gt;Deploy Grafana&lt;/h2&gt;
 
-&lt;p&gt;I’m pretty new to Grafana&lt;/p&gt;
+&lt;p&gt;I’m pretty new to Grafana myself, so I’m just showing a simple dashboard and panel, which I have been using for testing.&lt;/p&gt;
 
 &lt;h3 id=&quot;installation-1&quot;&gt;Installation&lt;/h3&gt;
 
-&lt;p&gt;Grafana has good and simple installation guide for Raspberry Pi &lt;a href=&quot;https://grafana.com/tutorials/install-grafana-on-raspberry-pi/#3&quot;&gt;here&lt;/a&gt;. Below are just commands from it and commands to install JSON plugin which is needed to visualize Ruuvi tag data with RuuviPi API.&lt;/p&gt;
+&lt;p&gt;Run the following commands to install Grafana and JSON plugin. The JSON plugin provides the ability to visualize Ruuvi tag data from RuuviPi API.&lt;/p&gt;
 
 &lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;wget &lt;span class=&quot;nt&quot;&gt;-q&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-O&lt;/span&gt; - https://packages.grafana.com/gpg.key | &lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;apt-key add -
 &lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; &lt;span class=&quot;s2&quot;&gt;&quot;deb https://packages.grafana.com/oss/deb stable main&quot;&lt;/span&gt; | &lt;span class=&quot;nb&quot;&gt;sudo tee&lt;/span&gt; &lt;span class=&quot;nt&quot;&gt;-a&lt;/span&gt; /etc/apt/sources.list.d/grafana.list
@@ -124,11 +125,9 @@ If it’s not running then check &lt;code class=&quot;highlighter-rouge&quot;&gt
 &lt;span class=&quot;nb&quot;&gt;sudo &lt;/span&gt;systemctl restart grafana-server
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;p&gt;Grafana should now answer in &lt;code class=&quot;highlighter-rouge&quot;&gt;http://&amp;lt;Pi's IP&amp;gt;:3000&lt;/code&gt; and login credentials are &lt;code class=&quot;highlighter-rouge&quot;&gt;admin:admin&lt;/code&gt;. First login prompts to change the password.&lt;/p&gt;
+&lt;p&gt;Grafana should now answer in &lt;code class=&quot;highlighter-rouge&quot;&gt;http://&amp;lt;Pi's IP&amp;gt;:3000&lt;/code&gt; and login credentials are &lt;code class=&quot;highlighter-rouge&quot;&gt;admin:admin&lt;/code&gt;. The first login prompts to change the password.&lt;/p&gt;
 
 &lt;h3 id=&quot;configuration-1&quot;&gt;Configuration&lt;/h3&gt;
-
-&lt;p&gt;I’m pretty new to Grafana myself, so I’m just going to show a simple example dashboard and panel that I have tried myself.&lt;/p&gt;
 
 &lt;h4 id=&quot;create-data-source&quot;&gt;Create Data Source&lt;/h4&gt;
 
@@ -136,8 +135,8 @@ If it’s not running then check &lt;code class=&quot;highlighter-rouge&quot;&gt
   &lt;li&gt;Log in to Grafana&lt;/li&gt;
   &lt;li&gt;Select “Configuration” –&amp;gt; “Data Sources” –&amp;gt; “Add data source”&lt;/li&gt;
   &lt;li&gt;Search for “JSON” and select it&lt;/li&gt;
-  &lt;li&gt;Give it name “Ruuvi” and configure like in the below image
-  &lt;img src=&quot;/assets/ruuvPi2.png&quot; alt=&quot;&quot; /&gt;&lt;/li&gt;
+  &lt;li&gt;Give it name “Ruuvi” and configuration like in the below image
+ &lt;img src=&quot;/assets/ruuvPi2.png&quot; alt=&quot;&quot; /&gt;&lt;/li&gt;
   &lt;li&gt;“Save and Test”
     &lt;ul&gt;
       &lt;li&gt;You should see a green pop-up saying “Data source is working”&lt;/li&gt;
@@ -161,16 +160,16 @@ If it’s not running then check &lt;code class=&quot;highlighter-rouge&quot;&gt
   &lt;li&gt;Select “Query Inspector” and hit “Refresh”
     &lt;ul&gt;
       &lt;li&gt;In the bottom part of the Query Inspector you should see response from RuuviPi that includes tag’s data.&lt;/li&gt;
-      &lt;li&gt;You should also see some data visualized in the default panel.
+      &lt;li&gt;You should also see some data visualized in the panel already.
 &lt;img src=&quot;/assets/ruuviPi3.png&quot; alt=&quot;&quot; /&gt;&lt;/li&gt;
     &lt;/ul&gt;
   &lt;/li&gt;
+  &lt;li&gt;Save the panel and the dashboard&lt;/li&gt;
 &lt;/ol&gt;
 
 &lt;h2 id=&quot;deploy-nginx&quot;&gt;Deploy Nginx&lt;/h2&gt;
 
-&lt;p&gt;I’m using &lt;a href=&quot;https://www.nginx.com/resources/wiki/&quot;&gt;Nginx&lt;/a&gt; as a reverse proxy in front of Grafana. 
-The example configuration will be for plaintext HTTP without involving domain names, but of course, HTTPS is always recommended. Check &lt;a href=&quot;https://ssl-config.mozilla.org/&quot;&gt;this&lt;/a&gt; for example HTTPS configuration.&lt;/p&gt;
+&lt;p&gt;I’m using &lt;a href=&quot;https://www.nginx.com/resources/wiki/&quot;&gt;Nginx&lt;/a&gt; as a reverse proxy in front of Grafana.  The example configuration will be for plaintext HTTP without involving domain names, but HTTPS is always recommended. Check &lt;a href=&quot;https://ssl-config.mozilla.org/&quot;&gt;this&lt;/a&gt; if you want to see examples for HTTPS configuration.&lt;/p&gt;
 
 &lt;h3 id=&quot;installation-2&quot;&gt;Installation&lt;/h3&gt;
 
@@ -209,7 +208,9 @@ sudo ufw default deny incoming
 sudo ufw allow ssh
 sudo ufw allow http
 sudo ufw enable # press y
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;</content><author><name></name></author><category term="ruuvi" /><category term="raspberry" /><category term="grafana" /><summary type="html"></summary></entry><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi</title><link href="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi" /><published>2020-12-18T00:00:00+02:00</published><updated>2020-12-18T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag</id><content type="html" xml:base="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html">&lt;p&gt;This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check &lt;a href=&quot;https://ruuvi.com/&quot;&gt;this&lt;/a&gt; if you don’t know what Ruuvi tag is.&lt;/p&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Now you should be able to access Grafana through &lt;code class=&quot;highlighter-rouge&quot;&gt;http://&amp;lt;your Pi's IP&amp;gt;&lt;/code&gt;.&lt;/p&gt;</content><author><name></name></author><category term="ruuvi" /><category term="raspberry" /><category term="grafana" /><summary type="html"></summary></entry><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi</title><link href="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi" /><published>2020-12-18T00:00:00+02:00</published><updated>2020-12-18T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag</id><content type="html" xml:base="http://localhost:4000/2020/12/18/raspberrypi-and-ruuvitag.html">&lt;p&gt;This post shows how to deploy Raspberry Pi to fetch Ruuvi tag data and serve that data in a web application. Check &lt;a href=&quot;https://ruuvi.com/&quot;&gt;this&lt;/a&gt; if you don’t know what Ruuvi tag is.&lt;/p&gt;
 
 &lt;p&gt;The overall result is:&lt;/p&gt;
 
