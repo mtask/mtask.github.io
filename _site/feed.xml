@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-12-22T10:36:32+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi (part 2)</title><link href="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi (part 2)" /><published>2020-12-22T00:00:00+02:00</published><updated>2020-12-22T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two</id><content type="html" xml:base="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html">&lt;p&gt;This post continues with the topic of the &lt;a href=&quot;https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html&quot;&gt;previous post&lt;/a&gt; where I created a small &lt;a href=&quot;https://palletsprojects.com/p/flask/&quot;&gt;Flask&lt;/a&gt; based API and User Interface to view &lt;a href=&quot;https://ruuvi.com/&quot;&gt;Ruuvi tag&lt;/a&gt; data. 
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-12-22T11:18:18+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi (part 2)</title><link href="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi (part 2)" /><published>2020-12-22T00:00:00+02:00</published><updated>2020-12-22T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two</id><content type="html" xml:base="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html">&lt;p&gt;This post continues with the topic of the &lt;a href=&quot;https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html&quot;&gt;previous post&lt;/a&gt; where I created a small &lt;a href=&quot;https://palletsprojects.com/p/flask/&quot;&gt;Flask&lt;/a&gt; based API and User Interface to view &lt;a href=&quot;https://ruuvi.com/&quot;&gt;Ruuvi tag&lt;/a&gt; data. 
 I continue with the Flask based API concept, but now it can be used as a data source for &lt;a href=&quot;https://grafana.com/&quot;&gt;Grafana&lt;/a&gt;.
 I made a small app which I unimaginatively named as &lt;a href=&quot;https://github.com/mtask/RuuviPi&quot;&gt;RuuviPi&lt;/a&gt;. This provides an API which from Grafana can pull Ruuvi tag data and visualize it.&lt;/p&gt;
 
-&lt;p&gt;There really is not any Rapsberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
+&lt;p&gt;There really is nothing Raspberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
 its integrated Bluetooth adapter.&lt;/p&gt;
 
 &lt;p&gt;The end goal is to deploy the RuuviPi API as systemd service and visualize some Ruuvi data in Grafana.&lt;/p&gt;
@@ -35,11 +35,17 @@ to have Rapsberry Pi running and you are able access it e.g. via SSH. Following 
 pip3 install ruuvitag_sensor flask python-dateutil gunicorn
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
+&lt;p&gt;Note that the &lt;a href=&quot;https://github.com/ttu/ruuvitag-sensor&quot;&gt;ruuvitag_sensor library&lt;/a&gt;, which does all the hard work here, spawns sudo processes to extract Bluetooth data with &lt;code class=&quot;highlighter-rouge&quot;&gt;hcitool&lt;/code&gt; command. 
+Meaning that unless you allow all sudo commands without providing password then the user running the app should have &lt;code class=&quot;highlighter-rouge&quot;&gt;NOPASSWD&lt;/code&gt; for the &lt;code class=&quot;highlighter-rouge&quot;&gt;hcitool&lt;/code&gt;. For example:&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;pi &lt;span class=&quot;nv&quot;&gt;ALL&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;NOPASSWD: /usr/bin/hcitool
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
 &lt;h2 id=&quot;deploy-ruuvipi&quot;&gt;Deploy RuuviPi&lt;/h2&gt;
 
 &lt;h3 id=&quot;installation&quot;&gt;Installation&lt;/h3&gt;
 
-&lt;p&gt;Download the app from Github and extract it into some place you like. In the below example I’m using &lt;code class=&quot;highlighter-rouge&quot;&gt;pi&lt;/code&gt; users home directory. 
+&lt;p&gt;Download the app from Github and extract it into some place you like. In the below example I’m using &lt;code class=&quot;highlighter-rouge&quot;&gt;pi&lt;/code&gt; user’s home directory. 
 Remember to change you paths in other steps if you are using something else.&lt;/p&gt;
 
 &lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nb&quot;&gt;cd&lt;/span&gt; /home/pi/
@@ -63,12 +69,6 @@ unzip ruuvipi.zip
 
 &lt;p&gt;Now you can cd into &lt;code class=&quot;highlighter-rouge&quot;&gt;/home/pi/RuuviPi-main/src/&lt;/code&gt; and run &lt;code class=&quot;highlighter-rouge&quot;&gt;python3 ruuviDataSource.py&lt;/code&gt;. 
 This should start Flask development server. While keeping the app running you can run &lt;code class=&quot;highlighter-rouge&quot;&gt;curl -I http://127.0.0.1:8080/&lt;/code&gt; and check that you get &lt;code class=&quot;highlighter-rouge&quot;&gt;HTTP/1.1 200 OK&lt;/code&gt; response.&lt;/p&gt;
-
-&lt;p&gt;Note that &lt;a href=&quot;https://github.com/ttu/ruuvitag-sensor&quot;&gt;ruuvitag_sensor library&lt;/a&gt;, which does all the hard work, spawns sudo processes to extract Bluetooth data with &lt;code class=&quot;highlighter-rouge&quot;&gt;hcitool&lt;/code&gt; command. 
-Meaning that unless you allow all sudo commands without providing password then the user running the app should have &lt;code class=&quot;highlighter-rouge&quot;&gt;NOPASSWD&lt;/code&gt; for the &lt;code class=&quot;highlighter-rouge&quot;&gt;hcitool&lt;/code&gt;. For example:&lt;/p&gt;
-
-&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;pi &lt;span class=&quot;nv&quot;&gt;ALL&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;NOPASSWD: /usr/bin/hcitool
-&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
 &lt;h3 id=&quot;run-the-api-as-systemd-service&quot;&gt;Run the API as Systemd service&lt;/h3&gt;
 
@@ -94,7 +94,9 @@ Meaning that unless you allow all sudo commands without providing password then 
 &lt;span class=&quot;py&quot;&gt;WantedBy&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;multi-user.target&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;p&gt;Use &lt;code class=&quot;highlighter-rouge&quot;&gt;which gunicorn&lt;/code&gt; command to check &lt;a href=&quot;https://gunicorn.org/&quot;&gt;gunicorn’s&lt;/a&gt; location and set the correct value in &lt;code class=&quot;highlighter-rouge&quot;&gt;ExecStart=&lt;/code&gt; row. With different user that the &lt;code class=&quot;highlighter-rouge&quot;&gt;pi&lt;/code&gt;, ensure that the user has permissions to access RuuviPi files.&lt;/p&gt;
+&lt;p&gt;Use &lt;code class=&quot;highlighter-rouge&quot;&gt;which gunicorn&lt;/code&gt; command to check &lt;a href=&quot;https://gunicorn.org/&quot;&gt;gunicorn’s&lt;/a&gt; location and set the correct value in &lt;code class=&quot;highlighter-rouge&quot;&gt;ExecStart=&lt;/code&gt; row.&lt;/p&gt;
+
+&lt;p&gt;With a different user than the &lt;code class=&quot;highlighter-rouge&quot;&gt;pi&lt;/code&gt; user in &lt;code class=&quot;highlighter-rouge&quot;&gt;User=&lt;/code&gt; section, ensure that the user has permissions to access RuuviPi files. Usually you would want to use seperate service account without shell access.&lt;/p&gt;
 
 &lt;p&gt;Run the following commands to enable and start the service. First, ensure that you are not running the API manually anymore.&lt;/p&gt;
 

@@ -52,7 +52,7 @@
 I continue with the Flask based API concept, but now it can be used as a data source for <a href="https://grafana.com/">Grafana</a>.
 I made a small app which I unimaginatively named as <a href="https://github.com/mtask/RuuviPi">RuuviPi</a>. This provides an API which from Grafana can pull Ruuvi tag data and visualize it.</p>
 
-<p>There really is not any Rapsberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
+<p>There really is nothing Raspberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
 its integrated Bluetooth adapter.</p>
 
 <p>The end goal is to deploy the RuuviPi API as systemd service and visualize some Ruuvi data in Grafana.</p>
@@ -85,11 +85,17 @@ to have Rapsberry Pi running and you are able access it e.g. via SSH. Following 
 pip3 install ruuvitag_sensor flask python-dateutil gunicorn
 </code></pre></div></div>
 
+<p>Note that the <a href="https://github.com/ttu/ruuvitag-sensor">ruuvitag_sensor library</a>, which does all the hard work here, spawns sudo processes to extract Bluetooth data with <code class="highlighter-rouge">hcitool</code> command. 
+Meaning that unless you allow all sudo commands without providing password then the user running the app should have <code class="highlighter-rouge">NOPASSWD</code> for the <code class="highlighter-rouge">hcitool</code>. For example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>pi <span class="nv">ALL</span><span class="o">=</span>NOPASSWD: /usr/bin/hcitool
+</code></pre></div></div>
+
 <h2 id="deploy-ruuvipi">Deploy RuuviPi</h2>
 
 <h3 id="installation">Installation</h3>
 
-<p>Download the app from Github and extract it into some place you like. In the below example I’m using <code class="highlighter-rouge">pi</code> users home directory. 
+<p>Download the app from Github and extract it into some place you like. In the below example I’m using <code class="highlighter-rouge">pi</code> user’s home directory. 
 Remember to change you paths in other steps if you are using something else.</p>
 
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd</span> /home/pi/
@@ -113,12 +119,6 @@ unzip ruuvipi.zip
 
 <p>Now you can cd into <code class="highlighter-rouge">/home/pi/RuuviPi-main/src/</code> and run <code class="highlighter-rouge">python3 ruuviDataSource.py</code>. 
 This should start Flask development server. While keeping the app running you can run <code class="highlighter-rouge">curl -I http://127.0.0.1:8080/</code> and check that you get <code class="highlighter-rouge">HTTP/1.1 200 OK</code> response.</p>
-
-<p>Note that <a href="https://github.com/ttu/ruuvitag-sensor">ruuvitag_sensor library</a>, which does all the hard work, spawns sudo processes to extract Bluetooth data with <code class="highlighter-rouge">hcitool</code> command. 
-Meaning that unless you allow all sudo commands without providing password then the user running the app should have <code class="highlighter-rouge">NOPASSWD</code> for the <code class="highlighter-rouge">hcitool</code>. For example:</p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>pi <span class="nv">ALL</span><span class="o">=</span>NOPASSWD: /usr/bin/hcitool
-</code></pre></div></div>
 
 <h3 id="run-the-api-as-systemd-service">Run the API as Systemd service</h3>
 
@@ -144,7 +144,9 @@ Meaning that unless you allow all sudo commands without providing password then 
 <span class="py">WantedBy</span><span class="p">=</span><span class="s">multi-user.target</span>
 </code></pre></div></div>
 
-<p>Use <code class="highlighter-rouge">which gunicorn</code> command to check <a href="https://gunicorn.org/">gunicorn’s</a> location and set the correct value in <code class="highlighter-rouge">ExecStart=</code> row. With different user that the <code class="highlighter-rouge">pi</code>, ensure that the user has permissions to access RuuviPi files.</p>
+<p>Use <code class="highlighter-rouge">which gunicorn</code> command to check <a href="https://gunicorn.org/">gunicorn’s</a> location and set the correct value in <code class="highlighter-rouge">ExecStart=</code> row.</p>
+
+<p>With a different user than the <code class="highlighter-rouge">pi</code> user in <code class="highlighter-rouge">User=</code> section, ensure that the user has permissions to access RuuviPi files. Usually you would want to use seperate service account without shell access.</p>
 
 <p>Run the following commands to enable and start the service. First, ensure that you are not running the API manually anymore.</p>
 
