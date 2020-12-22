@@ -52,12 +52,12 @@
 Note that this method only applies to current Powershell session and is not persistent. 
 I also show more persistent method using Managed Object Format and WMI repository.</p>
 
-<h1 id="using-powershell-and-register-wmievent-cmdlet">Using Powershell and Register-WmiEvent cmdlet</h1>
+<h2 id="using-powershell-and-register-wmievent-cmdlet">Using Powershell and Register-WmiEvent cmdlet</h2>
 
 <p>Here’s a small script that I created to capture login events using WMI event subscription and Powershell.
 What the script does in practice:</p>
 
-<h2 id="script-content">Script content</h2>
+<h3 id="script-content">Script content</h3>
 
 <ol>
   <li>Specify query that returns <a href="https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-logonsession">win32_LogOnSession</a> events</li>
@@ -99,7 +99,7 @@ What the script does in practice:</p>
 </span><span class="p">}</span><span class="w">
 </span></code></pre></div></div>
 
-<h2 id="example-run">Example run</h2>
+<h3 id="example-run">Example run</h3>
 
 <p>Below is an example where I have saved the script as “monitor_login.ps1” and launched it. The shown output is coming from the <code class="highlighter-rouge">Register-WmiEvent</code> command.</p>
 
@@ -114,11 +114,11 @@ What the script does in practice:</p>
 <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Write-Host</span><span class="w"> </span><span class="s2">"New LogOn event for user </span><span class="nv">$username</span><span class="s2"> (SID: </span><span class="nv">$strSID</span><span class="s2">) of type </span><span class="bp">$this</span><span class="s2">LogonType"</span><span class="w">
 </span></code></pre></div></div>
 
-<h1 id="using-managed-object-format-and-wmi-repository">Using Managed Object Format and WMI repository</h1>
+<h2 id="using-managed-object-format-and-wmi-repository">Using Managed Object Format and WMI repository</h2>
 
 <p>Here is an example of how to add persistent WMI event subscription by using <a href="https://docs.microsoft.com/en-us/windows/win32/wmisdk/managed-object-format--mof-">Managed Object Format (MOF)</a> and <a href="https://docs.microsoft.com/en-us/windows/win32/wmisdk/mofcomp">Mofcomp</a> compiler.</p>
 
-<h2 id="add-subscriptions-to-wmi-repository-with-mof">Add subscriptions to WMI repository with MOF</h2>
+<h3 id="add-subscriptions-to-wmi-repository-with-mof">Add subscriptions to WMI repository with MOF</h3>
 
 <p>Below is the MOF file I’m using. The basic idea is pretty simple. It defines a filter that captures <code class="highlighter-rouge">win32_LogOnSession</code> events and a consumer that writes output of <code class="highlighter-rouge">Get-WmiObject -Class win32_loggedonuser</code> to file <code class="highlighter-rouge">C:\users_&lt;MM-dd-yyyy-HH-mm&gt;.json</code>.</p>
 
@@ -164,7 +164,7 @@ What the script does in practice:</p>
 
 <p><img src="/assets/wmi_mofcomp.png" alt="" /></p>
 
-<h2 id="explore-wmi-repository">Explore WMI repository</h2>
+<h3 id="explore-wmi-repository">Explore WMI repository</h3>
 
 <p>One option to view the WMI repository is to use <a href="https://github.com/vinaypamnani/wmie2/release">WMI explorer</a>. Here’s how the created filter and consumer can be observed in the app:</p>
 

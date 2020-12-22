@@ -10,12 +10,12 @@ This post shows a small Powershell script that I created to capture login events
 Note that this method only applies to current Powershell session and is not persistent. 
 I also show more persistent method using Managed Object Format and WMI repository.
 
-# Using Powershell and Register-WmiEvent cmdlet
+## Using Powershell and Register-WmiEvent cmdlet
 
 Here's a small script that I created to capture login events using WMI event subscription and Powershell.
 What the script does in practice:
 
-## Script content
+### Script content
 
 1. Specify query that returns [win32_LogOnSession](https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-logonsession) events
 2. Use `Register-WmiEvent` to subscribe to these events
@@ -53,7 +53,7 @@ Register-WmiEvent -SourceIdentifier LogonCapture -Query $query -Action {
 }
 ```
 
-## Example run
+### Example run
 
 Below is an example where I have saved the script as "monitor_login.ps1" and launched it. The shown output is coming from the `Register-WmiEvent` command. 
 
@@ -69,11 +69,11 @@ You can find the below line from the script which constructs the output line.
 Write-Host "New LogOn event for user $username (SID: $strSID) of type $thisLogonType"
 ```
 
-# Using Managed Object Format and WMI repository
+## Using Managed Object Format and WMI repository
 
 Here is an example of how to add persistent WMI event subscription by using [Managed Object Format (MOF)](https://docs.microsoft.com/en-us/windows/win32/wmisdk/managed-object-format--mof-) and [Mofcomp](https://docs.microsoft.com/en-us/windows/win32/wmisdk/mofcomp) compiler.
 
-## Add subscriptions to WMI repository with MOF
+### Add subscriptions to WMI repository with MOF
 
 Below is the MOF file I'm using. The basic idea is pretty simple. It defines a filter that captures `win32_LogOnSession` events and a consumer that writes output of `Get-WmiObject -Class win32_loggedonuser` to file `C:\users_<MM-dd-yyyy-HH-mm>.json`.
 
@@ -120,7 +120,7 @@ Next, I save the file as `test.mof` and compile it, so it's added to the WMI rep
 
 ![](/assets/wmi_mofcomp.png)
 
-## Explore WMI repository
+### Explore WMI repository
 
 One option to view the WMI repository is to use [WMI explorer](https://github.com/vinaypamnani/wmie2/release). Here's how the created filter and consumer can be observed in the app:
 

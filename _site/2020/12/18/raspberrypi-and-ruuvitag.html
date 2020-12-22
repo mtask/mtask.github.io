@@ -61,7 +61,7 @@
   <li>A Web application that consumes the API and displays the data in an HTML table.</li>
 </ul>
 
-<h1 id="what-you-need">What you need</h1>
+<h2 id="what-you-need">What you need</h2>
 
 <ol>
   <li>At least one Ruuvi tag.</li>
@@ -72,12 +72,12 @@
   </li>
 </ol>
 
-<h1 id="initial-setup">Initial setup</h1>
+<h2 id="initial-setup">Initial setup</h2>
 
 <p>Start <a href="https://www.raspberrypi.org/documentation/">here</a> if you need help with the initial Raspberry Pi setup.
 The optimal starting point for this post is that you can SSH into your Pi. I have used the latest Raspbian Lite OS image in the examples of this post.</p>
 
-<h1 id="install-dependencies">Install dependencies</h1>
+<h2 id="install-dependencies">Install dependencies</h2>
 
 <p>First install Python and bluetooth packages.</p>
 
@@ -95,7 +95,7 @@ The optimal starting point for this post is that you can SSH into your Pi. I hav
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>pip3 <span class="nb">install </span>ruuvitag_sensor flask flask-bootstrap requests Flask-WTF
 </code></pre></div></div>
 
-<h1 id="collecting-tag-data">Collecting tag data</h1>
+<h2 id="collecting-tag-data">Collecting tag data</h2>
 
 <p>Save the below script as <code class="highlighter-rouge">tag_to_sqlite.py</code>. The script fetches the latest data from a tag and stores that into a database.</p>
 
@@ -199,7 +199,7 @@ The optimal starting point for this post is that you can SSH into your Pi. I hav
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>python3 ruuvi/lib/python3.7/site-packages/ruuvitag_sensor <span class="nt">-f</span>
 </code></pre></div></div>
 
-<h1 id="flask-api-and-ui">Flask API and UI</h1>
+<h2 id="flask-api-and-ui">Flask API and UI</h2>
 <p><a href="https://palletsprojects.com/p/flask/">The Flask web application framework</a> is an excellent choice when you want to get something quickly up and running.
 First start by creating the below directory structure under <code class="highlighter-rouge">/home/pi/flasktag</code>.</p>
 
@@ -211,7 +211,7 @@ First start by creating the below directory structure under <code class="highlig
 
 <p>This is the base folder structure for the API and UI apps.</p>
 
-<h2 id="deploying-the-api">Deploying the API</h2>
+<h3 id="deploying-the-api">Deploying the API</h3>
 
 <p>Next, create a file <code class="highlighter-rouge">flasktag/api.py</code> and add the following content to it. The API  is a very simple JSON based API that returns the requested amount of rows from the <code class="highlighter-rouge">ruuvitag.db</code> database.</p>
 
@@ -272,7 +272,7 @@ First start by creating the below directory structure under <code class="highlig
     <span class="k">return</span> <span class="n">get_data_internal</span><span class="p">(</span><span class="n">conn</span><span class="p">,</span> <span class="n">rows</span><span class="p">)</span>
 </code></pre></div></div>
 
-<h2 id="testing-the-api">Testing the API</h2>
+<h3 id="testing-the-api">Testing the API</h3>
 
 <p>Navigate to the <code class="highlighter-rouge">flasktag</code> folder and run the API app with the command <code class="highlighter-rouge">python3 api.py</code>. You can launch this in background or in Screen or in a new ssh session. 
 Then test the API with curl using the command <code class="highlighter-rouge">curl -s http:/127.0.0.1:8080/api/1 | python3 -m json.tool</code>. The command should return one database row in JSON format. The <code class="highlighter-rouge">| python3 -m json.tool</code> part is just for pretty printing.</p>
@@ -299,7 +299,7 @@ Then test the API with curl using the command <code class="highlighter-rouge">cu
 ]
 </code></pre></div></div>
 
-<h2 id="deploying-the-ui">Deploying the UI</h2>
+<h3 id="deploying-the-ui">Deploying the UI</h3>
 
 <p>The UI shows the data inside an HTML table. It uses the API in the background.  I did the separation in this way as I may want to use the API or some version of it to populate the data into some existing data visualization tool. The UI is mainly a proof of concept tool to view the data.</p>
 
@@ -414,7 +414,7 @@ Failed to fetch ruuvidata.
 {% endif %}
 {% endblock %}</code></pre></figure>
 
-<h2 id="testing-the-ui">Testing the UI</h2>
+<h3 id="testing-the-ui">Testing the UI</h3>
 
 <p>Ensure that your current working directory is <code class="highlighter-rouge">&lt;path&gt;/flasktag</code>. Then launch the API in background and the UI after that.</p>
 
@@ -431,7 +431,7 @@ When you submit the form, then you should see something like this.</p>
 
 <p><img src="/assets/piandruuvitag2.png" alt="" /></p>
 
-<h2 id="automate-data-gathering">Automate data gathering</h2>
+<h3 id="automate-data-gathering">Automate data gathering</h3>
 
 <p>You can use Cron or Systemd timers to populate the database with new data. I tested this with a simple cron job that launches the <code class="highlighter-rouge">tag_to_sqlite.py</code> script every five minutes. Making the virtualenv to work inside the Cron job gave some challenges. I “fixed” this, for now, just by installing the python dependencies globally for the user.</p>
 

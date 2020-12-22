@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-12-22T10:08:13+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi (part 2)</title><link href="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi (part 2)" /><published>2020-12-22T00:00:00+02:00</published><updated>2020-12-22T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two</id><content type="html" xml:base="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html">&lt;p&gt;This post continues with the topic of the &lt;a href=&quot;https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html&quot;&gt;previous post&lt;/a&gt; where I created a small &lt;a href=&quot;https://palletsprojects.com/p/flask/&quot;&gt;Flask&lt;/a&gt; based API and User Interface to view &lt;a href=&quot;https://ruuvi.com/&quot;&gt;Ruuvi tag&lt;/a&gt; data. 
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2020-12-22T10:19:11+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog Without Name</title><subtitle>Cybersecurity, homelabbing, and whatnot</subtitle><entry><title type="html">Monitoring Ruuvi tags with Raspberry Pi (part 2)</title><link href="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html" rel="alternate" type="text/html" title="Monitoring Ruuvi tags with Raspberry Pi (part 2)" /><published>2020-12-22T00:00:00+02:00</published><updated>2020-12-22T00:00:00+02:00</updated><id>http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two</id><content type="html" xml:base="http://localhost:4000/2020/12/22/raspberrypi-and-ruuvitag-part-two.html">&lt;p&gt;This post continues with the topic of the &lt;a href=&quot;https://mtask.github.io/2020/12/18/raspberrypi-and-ruuvitag.html&quot;&gt;previous post&lt;/a&gt; where I created a small &lt;a href=&quot;https://palletsprojects.com/p/flask/&quot;&gt;Flask&lt;/a&gt; based API and User Interface to view &lt;a href=&quot;https://ruuvi.com/&quot;&gt;Ruuvi tag&lt;/a&gt; data. 
 I continue with the Flask based API concept, but now it can be used as a data source for &lt;a href=&quot;https://grafana.com/&quot;&gt;Grafana&lt;/a&gt;.
 I made a small app which I unimaginatively named as RuuviPi. This provides an API which from Grafana can pull Ruuvi tag data and visualize it.&lt;/p&gt;
 
@@ -224,7 +224,7 @@ sudo ufw enable # press y
   &lt;li&gt;A Web application that consumes the API and displays the data in an HTML table.&lt;/li&gt;
 &lt;/ul&gt;
 
-&lt;h1 id=&quot;what-you-need&quot;&gt;What you need&lt;/h1&gt;
+&lt;h2 id=&quot;what-you-need&quot;&gt;What you need&lt;/h2&gt;
 
 &lt;ol&gt;
   &lt;li&gt;At least one Ruuvi tag.&lt;/li&gt;
@@ -235,12 +235,12 @@ sudo ufw enable # press y
   &lt;/li&gt;
 &lt;/ol&gt;
 
-&lt;h1 id=&quot;initial-setup&quot;&gt;Initial setup&lt;/h1&gt;
+&lt;h2 id=&quot;initial-setup&quot;&gt;Initial setup&lt;/h2&gt;
 
 &lt;p&gt;Start &lt;a href=&quot;https://www.raspberrypi.org/documentation/&quot;&gt;here&lt;/a&gt; if you need help with the initial Raspberry Pi setup.
 The optimal starting point for this post is that you can SSH into your Pi. I have used the latest Raspbian Lite OS image in the examples of this post.&lt;/p&gt;
 
-&lt;h1 id=&quot;install-dependencies&quot;&gt;Install dependencies&lt;/h1&gt;
+&lt;h2 id=&quot;install-dependencies&quot;&gt;Install dependencies&lt;/h2&gt;
 
 &lt;p&gt;First install Python and bluetooth packages.&lt;/p&gt;
 
@@ -258,7 +258,7 @@ The optimal starting point for this post is that you can SSH into your Pi. I hav
 &lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;pip3 &lt;span class=&quot;nb&quot;&gt;install &lt;/span&gt;ruuvitag_sensor flask flask-bootstrap requests Flask-WTF
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;h1 id=&quot;collecting-tag-data&quot;&gt;Collecting tag data&lt;/h1&gt;
+&lt;h2 id=&quot;collecting-tag-data&quot;&gt;Collecting tag data&lt;/h2&gt;
 
 &lt;p&gt;Save the below script as &lt;code class=&quot;highlighter-rouge&quot;&gt;tag_to_sqlite.py&lt;/code&gt;. The script fetches the latest data from a tag and stores that into a database.&lt;/p&gt;
 
@@ -362,7 +362,7 @@ The optimal starting point for this post is that you can SSH into your Pi. I hav
 &lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;python3 ruuvi/lib/python3.7/site-packages/ruuvitag_sensor &lt;span class=&quot;nt&quot;&gt;-f&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;h1 id=&quot;flask-api-and-ui&quot;&gt;Flask API and UI&lt;/h1&gt;
+&lt;h2 id=&quot;flask-api-and-ui&quot;&gt;Flask API and UI&lt;/h2&gt;
 &lt;p&gt;&lt;a href=&quot;https://palletsprojects.com/p/flask/&quot;&gt;The Flask web application framework&lt;/a&gt; is an excellent choice when you want to get something quickly up and running.
 First start by creating the below directory structure under &lt;code class=&quot;highlighter-rouge&quot;&gt;/home/pi/flasktag&lt;/code&gt;.&lt;/p&gt;
 
@@ -374,7 +374,7 @@ First start by creating the below directory structure under &lt;code class=&quot
 
 &lt;p&gt;This is the base folder structure for the API and UI apps.&lt;/p&gt;
 
-&lt;h2 id=&quot;deploying-the-api&quot;&gt;Deploying the API&lt;/h2&gt;
+&lt;h3 id=&quot;deploying-the-api&quot;&gt;Deploying the API&lt;/h3&gt;
 
 &lt;p&gt;Next, create a file &lt;code class=&quot;highlighter-rouge&quot;&gt;flasktag/api.py&lt;/code&gt; and add the following content to it. The API  is a very simple JSON based API that returns the requested amount of rows from the &lt;code class=&quot;highlighter-rouge&quot;&gt;ruuvitag.db&lt;/code&gt; database.&lt;/p&gt;
 
@@ -435,7 +435,7 @@ First start by creating the below directory structure under &lt;code class=&quot
     &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;get_data_internal&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;conn&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;rows&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;h2 id=&quot;testing-the-api&quot;&gt;Testing the API&lt;/h2&gt;
+&lt;h3 id=&quot;testing-the-api&quot;&gt;Testing the API&lt;/h3&gt;
 
 &lt;p&gt;Navigate to the &lt;code class=&quot;highlighter-rouge&quot;&gt;flasktag&lt;/code&gt; folder and run the API app with the command &lt;code class=&quot;highlighter-rouge&quot;&gt;python3 api.py&lt;/code&gt;. You can launch this in background or in Screen or in a new ssh session. 
 Then test the API with curl using the command &lt;code class=&quot;highlighter-rouge&quot;&gt;curl -s http:/127.0.0.1:8080/api/1 | python3 -m json.tool&lt;/code&gt;. The command should return one database row in JSON format. The &lt;code class=&quot;highlighter-rouge&quot;&gt;| python3 -m json.tool&lt;/code&gt; part is just for pretty printing.&lt;/p&gt;
@@ -462,7 +462,7 @@ Then test the API with curl using the command &lt;code class=&quot;highlighter-r
 ]
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;h2 id=&quot;deploying-the-ui&quot;&gt;Deploying the UI&lt;/h2&gt;
+&lt;h3 id=&quot;deploying-the-ui&quot;&gt;Deploying the UI&lt;/h3&gt;
 
 &lt;p&gt;The UI shows the data inside an HTML table. It uses the API in the background.  I did the separation in this way as I may want to use the API or some version of it to populate the data into some existing data visualization tool. The UI is mainly a proof of concept tool to view the data.&lt;/p&gt;
 
@@ -577,7 +577,7 @@ Failed to fetch ruuvidata.
 {% endif %}
 {% endblock %}&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
 
-&lt;h2 id=&quot;testing-the-ui&quot;&gt;Testing the UI&lt;/h2&gt;
+&lt;h3 id=&quot;testing-the-ui&quot;&gt;Testing the UI&lt;/h3&gt;
 
 &lt;p&gt;Ensure that your current working directory is &lt;code class=&quot;highlighter-rouge&quot;&gt;&amp;lt;path&amp;gt;/flasktag&lt;/code&gt;. Then launch the API in background and the UI after that.&lt;/p&gt;
 
@@ -594,7 +594,7 @@ When you submit the form, then you should see something like this.&lt;/p&gt;
 
 &lt;p&gt;&lt;img src=&quot;/assets/piandruuvitag2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
 
-&lt;h2 id=&quot;automate-data-gathering&quot;&gt;Automate data gathering&lt;/h2&gt;
+&lt;h3 id=&quot;automate-data-gathering&quot;&gt;Automate data gathering&lt;/h3&gt;
 
 &lt;p&gt;You can use Cron or Systemd timers to populate the database with new data. I tested this with a simple cron job that launches the &lt;code class=&quot;highlighter-rouge&quot;&gt;tag_to_sqlite.py&lt;/code&gt; script every five minutes. Making the virtualenv to work inside the Cron job gave some challenges. I “fixed” this, for now, just by installing the python dependencies globally for the user.&lt;/p&gt;
 
@@ -604,12 +604,12 @@ When you submit the form, then you should see something like this.&lt;/p&gt;
 Note that this method only applies to current Powershell session and is not persistent. 
 I also show more persistent method using Managed Object Format and WMI repository.&lt;/p&gt;
 
-&lt;h1 id=&quot;using-powershell-and-register-wmievent-cmdlet&quot;&gt;Using Powershell and Register-WmiEvent cmdlet&lt;/h1&gt;
+&lt;h2 id=&quot;using-powershell-and-register-wmievent-cmdlet&quot;&gt;Using Powershell and Register-WmiEvent cmdlet&lt;/h2&gt;
 
 &lt;p&gt;Here’s a small script that I created to capture login events using WMI event subscription and Powershell.
 What the script does in practice:&lt;/p&gt;
 
-&lt;h2 id=&quot;script-content&quot;&gt;Script content&lt;/h2&gt;
+&lt;h3 id=&quot;script-content&quot;&gt;Script content&lt;/h3&gt;
 
 &lt;ol&gt;
   &lt;li&gt;Specify query that returns &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-logonsession&quot;&gt;win32_LogOnSession&lt;/a&gt; events&lt;/li&gt;
@@ -651,7 +651,7 @@ What the script does in practice:&lt;/p&gt;
 &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
 &lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;h2 id=&quot;example-run&quot;&gt;Example run&lt;/h2&gt;
+&lt;h3 id=&quot;example-run&quot;&gt;Example run&lt;/h3&gt;
 
 &lt;p&gt;Below is an example where I have saved the script as “monitor_login.ps1” and launched it. The shown output is coming from the &lt;code class=&quot;highlighter-rouge&quot;&gt;Register-WmiEvent&lt;/code&gt; command.&lt;/p&gt;
 
@@ -666,11 +666,11 @@ What the script does in practice:&lt;/p&gt;
 &lt;div class=&quot;language-powershell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;n&quot;&gt;Write-Host&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;New LogOn event for user &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$username&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt; (SID: &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$strSID&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;) of type &lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;$this&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;LogonType&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
 &lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;h1 id=&quot;using-managed-object-format-and-wmi-repository&quot;&gt;Using Managed Object Format and WMI repository&lt;/h1&gt;
+&lt;h2 id=&quot;using-managed-object-format-and-wmi-repository&quot;&gt;Using Managed Object Format and WMI repository&lt;/h2&gt;
 
 &lt;p&gt;Here is an example of how to add persistent WMI event subscription by using &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/wmisdk/managed-object-format--mof-&quot;&gt;Managed Object Format (MOF)&lt;/a&gt; and &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/wmisdk/mofcomp&quot;&gt;Mofcomp&lt;/a&gt; compiler.&lt;/p&gt;
 
-&lt;h2 id=&quot;add-subscriptions-to-wmi-repository-with-mof&quot;&gt;Add subscriptions to WMI repository with MOF&lt;/h2&gt;
+&lt;h3 id=&quot;add-subscriptions-to-wmi-repository-with-mof&quot;&gt;Add subscriptions to WMI repository with MOF&lt;/h3&gt;
 
 &lt;p&gt;Below is the MOF file I’m using. The basic idea is pretty simple. It defines a filter that captures &lt;code class=&quot;highlighter-rouge&quot;&gt;win32_LogOnSession&lt;/code&gt; events and a consumer that writes output of &lt;code class=&quot;highlighter-rouge&quot;&gt;Get-WmiObject -Class win32_loggedonuser&lt;/code&gt; to file &lt;code class=&quot;highlighter-rouge&quot;&gt;C:\users_&amp;lt;MM-dd-yyyy-HH-mm&amp;gt;.json&lt;/code&gt;.&lt;/p&gt;
 
@@ -716,7 +716,7 @@ What the script does in practice:&lt;/p&gt;
 
 &lt;p&gt;&lt;img src=&quot;/assets/wmi_mofcomp.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
 
-&lt;h2 id=&quot;explore-wmi-repository&quot;&gt;Explore WMI repository&lt;/h2&gt;
+&lt;h3 id=&quot;explore-wmi-repository&quot;&gt;Explore WMI repository&lt;/h3&gt;
 
 &lt;p&gt;One option to view the WMI repository is to use &lt;a href=&quot;https://github.com/vinaypamnani/wmie2/release&quot;&gt;WMI explorer&lt;/a&gt;. Here’s how the created filter and consumer can be observed in the app:&lt;/p&gt;
 

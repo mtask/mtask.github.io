@@ -14,18 +14,18 @@ The overall result is:
 - An API to serve the data.
 - A Web application that consumes the API and displays the data in an HTML table.
 
-# What you need
+## What you need
 
 1. At least one Ruuvi tag.
 2. Raspberry Pi (I'm using model 3)
   * If you have an older version without Bluetooth capability, then an external Bluetooth adapter is needed.
 
-# Initial setup
+## Initial setup
 
 Start [here](https://www.raspberrypi.org/documentation/) if you need help with the initial Raspberry Pi setup.
 The optimal starting point for this post is that you can SSH into your Pi. I have used the latest Raspbian Lite OS image in the examples of this post.
 
-# Install dependencies
+## Install dependencies
 
 First install Python and bluetooth packages.
 
@@ -46,7 +46,7 @@ Next install Python dependencies.
 pip3 install ruuvitag_sensor flask flask-bootstrap requests Flask-WTF
 ```
 
-# Collecting tag data
+## Collecting tag data
 
 Save the below script as `tag_to_sqlite.py`. The script fetches the latest data from a tag and stores that into a database.
 
@@ -152,7 +152,7 @@ You can find the MAC address of your Ruuvi tag with the Python library's command
 python3 ruuvi/lib/python3.7/site-packages/ruuvitag_sensor -f
 ```
 
-# Flask API and UI
+## Flask API and UI
 [The Flask web application framework](https://palletsprojects.com/p/flask/) is an excellent choice when you want to get something quickly up and running.
 First start by creating the below directory structure under `/home/pi/flasktag`. 
 
@@ -165,7 +165,7 @@ flasktag
 
 This is the base folder structure for the API and UI apps.
 
-## Deploying the API
+### Deploying the API
 
 Next, create a file `flasktag/api.py` and add the following content to it. The API  is a very simple JSON based API that returns the requested amount of rows from the `ruuvitag.db` database.
 
@@ -228,7 +228,7 @@ def get_data(database, rows):
     return get_data_internal(conn, rows)
 ```
 
-## Testing the API
+### Testing the API
 
 Navigate to the `flasktag` folder and run the API app with the command `python3 api.py`. You can launch this in background or in Screen or in a new ssh session. 
 Then test the API with curl using the command `curl -s http:/127.0.0.1:8080/api/1 | python3 -m json.tool`. The command should return one database row in JSON format. The `| python3 -m json.tool` part is just for pretty printing.
@@ -256,7 +256,7 @@ $ curl -s http:/127.0.0.1:8080/api/1 | python3 -m json.tool
 ]
 ```
 
-## Deploying the UI
+### Deploying the UI
 
 The UI shows the data inside an HTML table. It uses the API in the background.  I did the separation in this way as I may want to use the API or some version of it to populate the data into some existing data visualization tool. The UI is mainly a proof of concept tool to view the data.
 
@@ -376,7 +376,7 @@ Failed to fetch ruuvidata.
 {% endraw %}{% endhighlight %}
 
 
-## Testing the UI
+### Testing the UI
 
 Ensure that your current working directory is `<path>/flasktag`. Then launch the API in background and the UI after that.
 
@@ -394,7 +394,7 @@ When you submit the form, then you should see something like this.
   
 ![](/assets/piandruuvitag2.png)
 
-## Automate data gathering
+### Automate data gathering
 
 You can use Cron or Systemd timers to populate the database with new data. I tested this with a simple cron job that launches the `tag_to_sqlite.py` script every five minutes. Making the virtualenv to work inside the Cron job gave some challenges. I "fixed" this, for now, just by installing the python dependencies globally for the user.
 
