@@ -10,7 +10,7 @@ This post continues with the topic of the [previous post](https://mtask.github.i
 I continue with the Flask based API concept, but now it can be used as a data source for [Grafana](https://grafana.com/).
 I made a small app which I unimaginatively named as [RuuviPi](https://github.com/mtask/RuuviPi). This provides an API which from Grafana can pull Ruuvi tag data and visualize it.
 
-There really is not anything Rapsberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
+There really is nothing Raspberry Pi specific in this, so technically you can use any Linux distribution and hardware, but I have tested everything with Raspberry Pi model 3 and
 its integrated Bluetooth adapter.
 
 The end goal is to deploy the RuuviPi API as systemd service and visualize some Ruuvi data in Grafana.
