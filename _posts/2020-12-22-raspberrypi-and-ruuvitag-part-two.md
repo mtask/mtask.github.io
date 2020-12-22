@@ -69,7 +69,7 @@ Open (`vi(m)`/`nano`) `/home/pi/RuuviPi-main/src/instance/conf.py` and change th
 Now you can cd into `/home/pi/RuuviPi-main/src/` and run `python3 ruuviDataSource.py`. 
 This should start Flask development server. While keeping the app running you can run `curl -I http://127.0.0.1:8080/` and check that you get `HTTP/1.1 200 OK` response.
 
-Note that [ruuvitag_sensor library](https://github.com/ttu/ruuvitag-sensor), which does all the hard work, spawns sudo processes to extract Bluetooth data with `hcitool` command. 
+Note that the [ruuvitag_sensor library](https://github.com/ttu/ruuvitag-sensor), which does all the hard work here, spawns sudo processes to extract Bluetooth data with `hcitool` command. 
 Meaning that unless you allow all sudo commands without providing password then the user running the app should have `NOPASSWD` for the `hcitool`. For example:
 
 ```bash
