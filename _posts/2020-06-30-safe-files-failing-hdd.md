@@ -2,7 +2,7 @@
 
 title: 'Saving files from a (potentially) failing hard drive'
 layout: 'post'
-tags: ["ddrescue"]
+tags: ["Homelab"]
 
 ---
 

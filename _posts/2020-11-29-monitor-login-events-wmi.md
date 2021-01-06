@@ -1,7 +1,7 @@
 ---
 title: 'Monitoring Windows login events with WMI'
 layout: 'post'
-tags: ["windows","powershell","wmi"]
+tags: ["Windows","Security"]
 ---
 
 {:toc}

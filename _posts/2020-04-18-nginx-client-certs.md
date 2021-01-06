@@ -1,7 +1,7 @@
 ---
-title: 'NGINX and client certificates'
+title: 'Nginx and client certificates'
 layout: 'post'
-tags: ["nginx"]
+tags: ["Security"]
 ---
 {:toc}
 
@@ -10,14 +10,14 @@ TLS  server authentication is a very common process these days, thanks to widely
 TLS client authentication is not as commonly seen, but practically the process is just the same verification done otherways around.  It doesn't add any extra layers to TLS encryption, but it allows servers to validate that client connection is coming from a trusted party.
 
 
-This post demonstrates client certificate usage with NGINX.
-Exampes will use a simple architecture where NGINX acts as a reverse proxy in front of a backend service.
+This post demonstrates client certificate usage with Nginx.
+Exampes will use a simple architecture where Nginx acts as a reverse proxy in front of a backend service.
 
 Technically we are doing *mutual authentication*[^1], but I will concentrate more on the client authentication.
 
 ## Generate test certificate
 
-Here are examples of how to generate self-signed certificates for **testing**. Copy these certificate(s) and private key(s) to the machine where you will configure the NGINX.
+Here are examples of how to generate self-signed certificates for **testing**. Copy these certificate(s) and private key(s) to the machine where you will configure the Nginx.
 
 ### Client certificate
 
@@ -32,7 +32,7 @@ This gives us:
 * `client1_crt.pem` - client certificate
 * `client1_key.pem` - matching private key
 
-We will use this certificate to authenticate with NGINX server.
+We will use this certificate to authenticate with Nginx server.
 
 ![architecture](/assets/nginx_client_tls_arch.png)
 
@@ -40,10 +40,10 @@ We will use this certificate to authenticate with NGINX server.
 
 You can use the same command as with client certificates to generate your server certificate. With a publicly registered domain, you can also use certificate provider like [Let's Encrypt](https://letsencrypt.org/).
 
-## Install and configuring NGINX
+## Install and configuring Nginx
 
 
-1. Install NGINX server
+1. Install Nginx server
 
    ```bash
    # debian/ubuntu
@@ -103,7 +103,7 @@ You can use the same command as with client certificates to generate your server
    ln -s ../sites-available/<mysite> .
    ```
 
-5. Restart NGINX:
+5. Restart Nginx:
 
    ```bash
    systemctl restart nginx
@@ -181,7 +181,7 @@ if __name__ == '__main__':
    #detach screen: ctrl+A+D
    ```
 
-2. Make sure that NGINX is running correctly:
+2. Make sure that Nginx is running correctly:
 
    ```bash
    systemctl status nginx
@@ -251,7 +251,7 @@ In our above example, we generated a *self-signed* client certificate which was 
 
 It's possible to use certificates signed by a public CA, but usually, you don't want to do that with client certificates as then unknown parties could request certificates from the same CA and authenticate with your TLS endpoint.
 
-When an intermediate certificate is used to sign client certificates you can bundle client certificates with the intermediate certificate and this way the NGINX server can verify the full certificate chain. 
+When an intermediate certificate is used to sign client certificates you can bundle client certificates with the intermediate certificate and this way the Nginx server can verify the full certificate chain. 
 
 Notice that certificates signed with other intermediate certificates of the same CA, or certificates directly signed with the root certificate, will pass the authentication as well. 
 
@@ -261,7 +261,7 @@ Notice that certificates signed with other intermediate certificates of the same
 
 Sometimes it can be enough to accept certificates from a specific CA, but sometimes you may need to validate client certificates more closely. 
 
-NGINX's *ngx_http_ssl_module* has multiple variables to access certificate details. 
+Nginx's *ngx_http_ssl_module* has multiple variables to access certificate details. 
 We will now focus to *ssl_client_s_dn* variable which includes the value of certificate's *distinguished name (dn)*.
 You can see other variables [here](http://nginx.org/en/docs/http/ngx_http_ssl_module.html).
 
@@ -300,16 +300,16 @@ Accept: */*
 
 
 
-## Validate access in NGINX
+## Validate access in Nginx
 
-Sometimes you may want to do further validation already on the NGINX server and minimize requests that are forwarded to backend service. 
+Sometimes you may want to do further validation already on the Nginx server and minimize requests that are forwarded to backend service. 
 Another reason could be that your backend service doesn't need to be aware of client certificates.
 
-I will show few examples of how you can allow only specific certificates, or certificates from a specific issuer, with NGINX's configuration.
+I will show few examples of how you can allow only specific certificates, or certificates from a specific issuer, with Nginx's configuration.
 
 ### Allow specific certificates only
 
-We can use *if* statements in NGINX to allow only few specific certificates. However, read [this](https://www.nginx.com/resources/wiki/start/topics/depth/ifisevil/) before you start to play around with if statements.
+We can use *if* statements in Nginx to allow only few specific certificates. However, read [this](https://www.nginx.com/resources/wiki/start/topics/depth/ifisevil/) before you start to play around with if statements.
 
 ```
 server{
@@ -331,7 +331,7 @@ Think about a situation where you have an internal CA with multiple intermedia c
 Those intermediate certificates have been used to issue certificates into all kinds of internal services. 
 
 Now imagine you have a new service that should only allow access when the client's certificate is issued by a specific intermediate certificate.
-To achieve this kind of restriction I will briefly demonstrate another NGINX variable:
+To achieve this kind of restriction I will briefly demonstrate another Nginx variable:
 
 > *$ssl_client_i_dn returns the “issuer DN” string of the client certificate for an established SSL connection according to RFC 2253 (1.11.6);*
 >
@@ -341,7 +341,7 @@ The below image demonstrates CA's structure and validation that we want to achie
 
 ![](/assets/castructure.png)
 
-NGINX rule that we can use won't differ much from validating client's DN value:
+Nginx rule that we can use won't differ much from validating client's DN value:
 
 ```
 if ($ssl_client_i_dn !~ 'Intermediate 1')
@@ -350,7 +350,7 @@ if ($ssl_client_i_dn !~ 'Intermediate 1')
 }
 ```
 
-Now NGINX should forward client request only when certificate is issued by the intermediate certificate *Intermediate 1*.
+Now Nginx should forward client request only when certificate is issued by the intermediate certificate *Intermediate 1*.
 
 
 ## Remember those layers
@@ -446,11 +446,11 @@ The point of these examples was to show, that the correct approach to secure a b
 
 ## Recap
 
-* TLS client authetication is quick to setup with NGINX...
+* TLS client authetication is quick to setup with Nginx...
 * ...but there are lots of things to consider with overall security.
 * Applications still need to validate authentication requests similarly as they would with form-based authentication.
 * You can still have form-based authentication with client certificates, so those can be combined for better security.
 
 ***
 [^1]: [https://en.wikipedia.org/wiki/Mutual_authentication](https://en.wikipedia.org/wiki/Mutual_authentication)
-[^2]: The given example configuration of NGINX may not reflect all TLS related security configurations that are recommended at least in production use. Check [Mozillas TLS recommendations](https://wiki.mozilla.org/Security/Server_Side_TLS) and [TLS configuration tool](https://ssl-config.mozilla.org/) for better overall information.
+[^2]: The given example configuration of Nginx may not reflect all TLS related security configurations that are recommended at least in production use. Check [Mozillas TLS recommendations](https://wiki.mozilla.org/Security/Server_Side_TLS) and [TLS configuration tool](https://ssl-config.mozilla.org/) for better overall information.

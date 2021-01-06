@@ -1,7 +1,7 @@
 ---
 title: 'Debugging Ansible modules'
 layout: post
-tags: ["ansible"]
+tags: ["Ansible"]
 ---
 {:toc}
 

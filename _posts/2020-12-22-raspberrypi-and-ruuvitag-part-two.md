@@ -1,7 +1,7 @@
 ---
 title: 'Monitoring Ruuvi tags with Raspberry Pi (part 2)'
 layout: 'post'
-tags: ["ruuvi","raspberry", "grafana"]
+tags: ["Homelab"]
 ---
 
 {:toc}

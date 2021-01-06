@@ -1,7 +1,7 @@
 ---
 title: 'Encrypting an external HDD with LUKS'
 layout: 'post'
-tags: ["encryption", "LUKS"]
+tags: ["Security"]
 
 ---
 
