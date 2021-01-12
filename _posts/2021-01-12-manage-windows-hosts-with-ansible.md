@@ -2,7 +2,7 @@
 
 title: 'Manage domain-joined Windows machines with Ansible'
 layout: 'post'
-tags: ["Windows", "Security"]
+tags: ["Windows", "Security", "Ansible"]
 
 ---
 
