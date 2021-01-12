@@ -229,3 +229,75 @@ I will create a domain user "ansible" and add that user to member machine's loca
    * Note that in the `ansible_user` value the domain needs to be uppercase like in my example.
 
 Now you should be able to use Ansible with Kerberos as we have the target architecture up and running. You should now set settings `Allow basic authentication` and `Allow unencrypted traffic` to disabled in the GPO where you defined those settings.
+
+## Additional security considerations
+
+There are lots of different configuration options for things like authentication and transport security. I try to gather some additional security tips to this section. In minimum I would recommend to read [this](https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/winrmsecurity?view=powershell-7.1) document from Microsoft. 
+
+### Protected Users group
+
+When a user is added to built-in `Protected User` group the user automatically gets some extra protection. It can be a good idea to add the created "ansible" user to this group.
+
+![](/assets/winrm-ansible-protected-users.png)
+
+[Microsoft's documentation](https://docs.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group) specify the following protections:
+
+
+
+> When the signed in user is a member of the Protected Users group the following protections are applied:
+>
+> - Credential delegation (CredSSP) will not cache the user's plain text credentials even when the **Allow delegating default credentials** Group Policy setting is enabled.
+> - Beginning with Windows 8.1 and Windows Server 2012 R2, Windows Digest will not cache the user's plain text credentials even when Windows Digest is enabled.
+> - NTLM will not cache the user's plain text credentials or NT one-way function (NTOWF).
+> - Kerberos will no longer create DES or RC4 keys. Also it will not cache the user's plain text credentials or long-term keys after the initial TGT is acquired.
+> - A cached verifier is not created at sign-in or unlock, so offline sign-in is no longer supported.
+>
+> ...
+>
+> Accounts that are members of the Protected Users group that authenticate to a Windows Server 2012 R2 domain are unable to:
+>
+> - Authenticate with NTLM authentication.
+> - Use DES or RC4 encryption types in Kerberos pre-authentication.
+> - Be delegated with unconstrained or constrained delegation.
+> - Renew the Kerberos TGTs beyond the initial four-hour lifetime.
+
+
+
+Easy way to test if the group is doing something is to RDP to some member machine using the "ansible" account. You should get this kind of response:
+
+![](/assets/winrm-ansible-protected-users-rdp.png)
+
+The RDP connection is not anymore possible with this user due to the restrictions with CredSSP. Ansible connection still works with Kerberos authentication. However, I have not done excessive testing for Ansible's different Windows modules while the ansible user is in Protected Users group.
+
+### Unencrypted does not mean HTTP with WinRM
+
+Something that might be a bit confusing is WinRM's HTTP(s) listeners and `Allow unencrypted traffic` setting. One could thing that unencrypted means HTTP, but this is not the case. The way I understands this is that the unencrypted communication means an authentication method which does not provide message-level encryption inside the transport layer.
+
+You can test this by changing the `ansible_port` setting to `5985 (HTTP)` while having the `Allow unencrypted traffic` disabled. The connection should still works fine when Kerberos authentication is being used.
+
+If you checked [this](https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/winrmsecurity?view=powershell-7.1) document, that I mentioned before, you have seen the following statement:
+
+> It is helpful to consider the security of a PowerShell Remoting connection from two perspectives: initial authentication, and ongoing communication.
+>
+> Regardless of the transport protocol used (HTTP or HTTPS), WinRM always encrypts all PowerShell remoting communication after initial authentication.
+>
+> ...
+>
+> When connecting over HTTP, message-level encryption is determined by initial authentication protocol used.
+>
+> - Basic authentication provide no encryption.
+> - NTLM authentication uses an RC4 cipher with a 128-bit key.
+> - Kerberos authentication encryption is determined by the `etype` in the TGS ticket. This is AES-256 on modern systems.
+> - CredSSP encryption is uses the TLS cipher suite that was negotiated in the handshake.
+
+
+
+[Ansible's documentation](https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html#authentication-options) provides this kind of table regarding this:
+
+| Option      | Local Accounts | Active Directory Accounts | Credential Delegation | HTTP Encryption |
+| ----------- | -------------- | ------------------------- | --------------------- | --------------- |
+| Basic       | Yes            | No                        | No                    | No              |
+| Certificate | Yes            | No                        | No                    | No              |
+| Kerberos    | No             | Yes                       | Yes                   | Yes             |
+| NTLM        | Yes            | Yes                       | No                    | Yes             |
+| CredSSP     | Yes            | Yes                       | Yes                   | Yes             |
