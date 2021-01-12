@@ -59,11 +59,11 @@ $creds = Get-Credential
 Enter-pssession <your machine> –credential $creds
 ```
 
-
-
 ![image-20210112122739023](/assets/image-20210112122739023.png)
 
 ![image-20210112122847949](/assets/image-20210112122847949.png)
+
+Note that you will need to allow input traffic to ports 5985/TCP (HTTP) and 5986/TCP (HTTPS). You can later deny HTTP access when HTTPS is configured.
 
 ## First Ansible test
 
@@ -109,7 +109,9 @@ If you get some errors like `"basic: the specified credentials were rejected by 
 
 ## Certificate enrollment
 
-I won't go through the Certificate Authority role installation, but go on from a point where Windows CA exists in the environment.
+I'm using Windows Certificate Authority to auto-enroll a Computer certificate for the member machine. I'm not going through the CA deployment, but I have not done any special configurations for this. 
+
+The next steps assume that the CA service is available.
 
 1. Create a new GPO or edit existing one depending on your GPO strategy.
 
@@ -133,13 +135,14 @@ I won't go through the Certificate Authority role installation, but go on from a
 
    ![image-20210112144348158](/assets/image-20210112144348158.png)
 
-7. In your member machine create WinRM  HTTPS listener using the command `winrm quickconfig -transport:https` and verify listeners using `winrm enumerate winrm/config/listener`
+7. In your member machine, create a WinRM HTTPS listener using the command `winrm quickconfig -transport:https` and verify listeners using `winrm enumerate winrm/config/listener`
 
 ## Ansible test with HTTPS
 
-1. Export your CAs root certificate. In the CA server you can run the command `certutil -ca.cert win_ca.crt` to export the certificate.
+1. Export your CAs root certificate. 
+   * In the CA server you can run the command `certutil -ca.cert win_ca.crt` to export the certificate.
 2. In ansible controller, create a directory `files` on the same directory level with the inventory and copy the certificate to there.
-3. Add `ansible_winrm_ca_trust_path=files/win_ca.crt`
+3. Add `ansible_winrm_ca_trust_path=files/win_ca.crt` to the `hosts`.
 4. Ensure that `ansible_host` variable is now using domain name that matches with the subject of your member machine's certificate and remember that your controller machine needs to be able to resolve the domain name.
 5. Update `ansible_port` to `5986` in `inventory/hosts` and run `ansible -i inventory/hosts -m win_ping win101`. The expected result is the same as with HTTP connection.
 
