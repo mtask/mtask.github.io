@@ -1,4 +1,493 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2021-01-06T23:28:03+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog</title><subtitle>cybersecurity, homelab tinkering, etc.</subtitle><entry><title type="html">Centralized log collection and monitoring</title><link href="http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html" rel="alternate" type="text/html" title="Centralized log collection and monitoring" /><published>2021-01-03T00:00:00+02:00</published><updated>2021-01-03T00:00:00+02:00</updated><id>http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network</id><content type="html" xml:base="http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html">&lt;p&gt;From time to time, I get inspiration to tinker with monitoring my home network. Sometimes I want to test some new features in an existing solution or some new technology. Usually, it ends with some corporate-level setup that is nice for a while, but eventually, I don’t have time or interest to manage all that in my free time. Recently I have tried to implement an approach that is a bit better suited for home lab tinkering. This post is not a detailed step-by-step guide to do what I do, but more like an overview of my setup.&lt;/p&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.8.7">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2021-01-13T01:05:48+02:00</updated><id>http://localhost:4000/feed.xml</id><title type="html">Blog</title><subtitle>cybersecurity, homelab tinkering, etc.</subtitle><entry><title type="html">Manage domain-joined Windows machines with Ansible</title><link href="http://localhost:4000/2021/01/12/manage-windows-hosts-with-ansible.html" rel="alternate" type="text/html" title="Manage domain-joined Windows machines with Ansible" /><published>2021-01-12T00:00:00+02:00</published><updated>2021-01-12T00:00:00+02:00</updated><id>http://localhost:4000/2021/01/12/manage-windows-hosts-with-ansible</id><content type="html" xml:base="http://localhost:4000/2021/01/12/manage-windows-hosts-with-ansible.html">&lt;p&gt;This post shows how to configure a domain-joined Windows machine to be managed with Ansible.&lt;/p&gt;
+
+&lt;p&gt;Ansible uses Windows Remote Management (WinRM) service to communicate with Windows machines. I Will use a domain with one member machine to deploy the WinRM service with a GPO and then configure the Ansible controller to use Kerberos authentication.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/image-20210112150034053.png&quot; alt=&quot;image-20210112150034053&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;I have also included some testing steps before the final Kerberos and WinRM over HTTPS configuration, so it’s easier to spot what’s wrong in case of an issue.&lt;/p&gt;
+
+&lt;h2 id=&quot;deploy-winrm-service-with-gpo&quot;&gt;Deploy WinRM service with GPO&lt;/h2&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;Create a new GPO or edit existing one depending on your GPO strategy.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Open the GPO and go to &lt;code class=&quot;highlighter-rouge&quot;&gt;Computer Configuration &amp;gt; Policies &amp;gt; Administrative Templates &amp;gt; Windows Components &amp;gt; Windows Remote Management (WinRM) &amp;gt; WinRM Service&lt;/code&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Open the setting &lt;code class=&quot;highlighter-rouge&quot;&gt;Allow remote server management through WinRM&lt;/code&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;table&gt;
+      &lt;tbody&gt;
+        &lt;tr&gt;
+          &lt;td&gt;Set setting to enabled and set IPv(4&lt;/td&gt;
+          &lt;td&gt;6) filtering TBD&lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/tbody&gt;
+    &lt;/table&gt;
+
+    &lt;p&gt;&lt;img src=&quot;/assets/image-20210112101632279.png&quot; alt=&quot;image-20210112101632279&quot; /&gt;&lt;/p&gt;
+
+    &lt;ul&gt;
+      &lt;li&gt;I will also set &lt;code class=&quot;highlighter-rouge&quot;&gt;Allow basic authentication&lt;/code&gt; and &lt;code class=&quot;highlighter-rouge&quot;&gt;Allow unencrypted traffic&lt;/code&gt; to &lt;code class=&quot;highlighter-rouge&quot;&gt;enabled&lt;/code&gt; for the first tests . Note that these are not needed if you only want to user Kerberos authentication with Ansible and/or do not want to test the configuration without HTTPS.&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Go to &lt;code class=&quot;highlighter-rouge&quot;&gt;Go to Computer Configuration &amp;gt; Preferences &amp;gt; Control Panel Settings&lt;/code&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Right click the &lt;code class=&quot;highlighter-rouge&quot;&gt;service&lt;/code&gt; and select &lt;code class=&quot;highlighter-rouge&quot;&gt;New &amp;gt; Service &lt;/code&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Select &lt;code class=&quot;highlighter-rouge&quot;&gt;...&lt;/code&gt; next to the &lt;code class=&quot;highlighter-rouge&quot;&gt;Service name&lt;/code&gt; and select the &lt;code class=&quot;highlighter-rouge&quot;&gt;WinRM &lt;/code&gt; service&lt;/p&gt;
+
+    &lt;p&gt;&lt;img src=&quot;/assets/image-20210112120516929.png&quot; alt=&quot;image-20210112120516929&quot; /&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Set the &lt;code class=&quot;highlighter-rouge&quot;&gt;Startup&lt;/code&gt; to &lt;code class=&quot;highlighter-rouge&quot;&gt;Automatic (Delayed Start)&lt;/code&gt;  and &lt;code class=&quot;highlighter-rouge&quot;&gt;Service action&lt;/code&gt; to &lt;code class=&quot;highlighter-rouge&quot;&gt;Start service&lt;/code&gt; and click &lt;code class=&quot;highlighter-rouge&quot;&gt;OK&lt;/code&gt;&lt;/p&gt;
+
+    &lt;p&gt;&lt;img src=&quot;/assets/image-20210112120722920.png&quot; alt=&quot;image-20210112120722920&quot; /&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Save the GPO, go to a machine that gets settings from it, and run &lt;code class=&quot;highlighter-rouge&quot;&gt;gpudate /force&lt;/code&gt; command.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;Run the &lt;code class=&quot;highlighter-rouge&quot;&gt;Test-WSMan&lt;/code&gt; cmdlet in Powershell to verify that WinRM  service is running.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;testing-the-winrm--connection-with-powershell&quot;&gt;Testing the WinRM  connection with Powershell&lt;/h2&gt;
+
+&lt;p&gt;From a machine in your domain run &lt;code class=&quot;highlighter-rouge&quot;&gt;Enter-PSSession &amp;lt;machine with WIRM running&amp;gt;&lt;/code&gt;. I f you need to specify credentials for the connection then you can use something like this:&lt;/p&gt;
+
+&lt;div class=&quot;language-powershell highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nv&quot;&gt;$creds&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Get-Credential&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Enter-pssession&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;err&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;your&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;machine&lt;/span&gt;&lt;span class=&quot;err&quot;&gt;&amp;gt;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;err&quot;&gt;–&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;credential&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$creds&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/image-20210112122739023.png&quot; alt=&quot;image-20210112122739023&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/image-20210112122847949.png&quot; alt=&quot;image-20210112122847949&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Note that you will need to allow input traffic to ports 5985/TCP (HTTP) and 5986/TCP (HTTPS). You can later deny HTTP access when HTTPS is configured.&lt;/p&gt;
+
+&lt;h2 id=&quot;first-ansible-test&quot;&gt;First Ansible test&lt;/h2&gt;
+
+&lt;p&gt;Now you need to have a Linux machine with Ansible installed. I have a Debian machine where I install Ansible using Pip3.&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Install ansible using pip3 and run it inside a virtual environment:&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo apt install python3-venv python3-pip
+python3 -m venv ansible
+source ansible/bin/activate
+pip3 install ansible &quot;pywinrm&amp;gt;=0.3.0&quot;
+# Check ansible documentation for the recommended pywinrm version:
+# https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;Create a project structure: &lt;code class=&quot;highlighter-rouge&quot;&gt;mkdir -p win-test/inventory &amp;amp;&amp;amp; touch win-test/inventory/hosts&lt;/code&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Add the below content to the &lt;code class=&quot;highlighter-rouge&quot;&gt;hosts&lt;/code&gt; file and change your Windows host’s IP, credentials and also inventory names if you want.&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;div class=&quot;language-ini highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nn&quot;&gt;[win]&lt;/span&gt;
+&lt;span class=&quot;err&quot;&gt;win101&lt;/span&gt; &lt;span class=&quot;py&quot;&gt;ansible_host&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;lt;ip or dns name here&amp;gt;&lt;/span&gt;
+
+&lt;span class=&quot;nn&quot;&gt;[win:vars]&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_user&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;'&amp;lt;username&amp;gt;'&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_password&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;'&amp;lt;password here - hint, use ansible vault&amp;gt;'&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_connection&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;winrm&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_winrm_transport&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;basic&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_port&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;5985 # http - defaults to https 5986&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;Try the connection with ` ansible -i inventory/hosts -m win_ping win101`. You should get response like this:&lt;/p&gt;
+
+    &lt;div class=&quot;language-json highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;err&quot;&gt;win&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;101&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;err&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;err&quot;&gt;SUCCESS&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;err&quot;&gt;=&amp;gt;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;changed&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;kc&quot;&gt;false&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nl&quot;&gt;&quot;ping&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;pong&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;    &lt;/div&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;If you get some errors like &lt;code class=&quot;highlighter-rouge&quot;&gt;&quot;basic: the specified credentials were rejected by the server&lt;/code&gt; then check your WinRM  configuration on the windows host using &lt;code class=&quot;highlighter-rouge&quot;&gt;winrm get winrm/config&lt;/code&gt; command and verify that all settings are applied in the way they were specified with the GPO. Note that each setting specified with a GPO should have statement &lt;code class=&quot;highlighter-rouge&quot;&gt;[Source=&quot;GPO&quot;]&lt;/code&gt;.&lt;/p&gt;
+
+&lt;h2 id=&quot;certificate-enrollment&quot;&gt;Certificate enrollment&lt;/h2&gt;
+
+&lt;p&gt;I’m using Windows Certificate Authority to auto-enroll a Computer certificate for the member machine. I’m not going through the CA deployment, but I have not done any special configurations for this.&lt;/p&gt;
+
+&lt;p&gt;The next steps assume that the CA service is available.&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;Create a new GPO or edit existing one depending on your GPO strategy.&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Navigate to &lt;code class=&quot;highlighter-rouge&quot;&gt;Computer Configuration &amp;gt; Policies &amp;gt; Windows Settings &amp;gt; Security Settings &amp;gt; Public Key Policies&lt;/code&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Open &lt;code class=&quot;highlighter-rouge&quot;&gt;Certificate Services Client – Auto-Enrollment&lt;/code&gt; and set the setting to &lt;code class=&quot;highlighter-rouge&quot;&gt;Enabled&lt;/code&gt; and check the first two settings&lt;/p&gt;
+
+    &lt;p&gt;&lt;img src=&quot;/assets/image-20210112143306258.png&quot; alt=&quot;image-20210112143306258&quot; /&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Click &lt;code class=&quot;highlighter-rouge&quot;&gt;OK&lt;/code&gt; and right click &lt;code class=&quot;highlighter-rouge&quot;&gt;Automatic Certificate Request Settings &amp;gt; New &amp;gt; Automatic Certificate Request ...&lt;/code&gt;&lt;/p&gt;
+
+    &lt;ul&gt;
+      &lt;li&gt;
+        &lt;p&gt;Certificate template:  &lt;code class=&quot;highlighter-rouge&quot;&gt;Computer&lt;/code&gt; (or if you have another template then use that here)&lt;/p&gt;
+      &lt;/li&gt;
+      &lt;li&gt;
+        &lt;p&gt;Open &lt;code class=&quot;highlighter-rouge&quot;&gt;Automatic Certificate Request Settings&lt;/code&gt; and ensure that you can see your template there.&lt;/p&gt;
+
+        &lt;p&gt;&lt;img src=&quot;/assets/image-20210112143704676.png&quot; alt=&quot;image-20210112143704676&quot; /&gt;&lt;/p&gt;
+      &lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Ensure that the GPO is linked to a correct OU and go to your member machine and run &lt;code class=&quot;highlighter-rouge&quot;&gt;gpudate /force&lt;/code&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Go to your Certificate Authority and ensure that you can see the issued certificate&lt;/p&gt;
+
+    &lt;p&gt;&lt;img src=&quot;/assets/image-20210112144348158.png&quot; alt=&quot;image-20210112144348158&quot; /&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;In your member machine, create a WinRM HTTPS listener using the command &lt;code class=&quot;highlighter-rouge&quot;&gt;winrm quickconfig -transport:https&lt;/code&gt; and verify listeners using &lt;code class=&quot;highlighter-rouge&quot;&gt;winrm enumerate winrm/config/listener&lt;/code&gt;&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h2 id=&quot;ansible-test-with-https&quot;&gt;Ansible test with HTTPS&lt;/h2&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Export your CAs root certificate.
+    &lt;ul&gt;
+      &lt;li&gt;In the CA server you can run the command &lt;code class=&quot;highlighter-rouge&quot;&gt;certutil -ca.cert win_ca.crt&lt;/code&gt; to export the certificate.&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;In ansible controller, create a directory &lt;code class=&quot;highlighter-rouge&quot;&gt;files&lt;/code&gt; on the same directory level with the inventory and copy the certificate to there.&lt;/li&gt;
+  &lt;li&gt;Add &lt;code class=&quot;highlighter-rouge&quot;&gt;ansible_winrm_ca_trust_path=files/win_ca.crt&lt;/code&gt; to the &lt;code class=&quot;highlighter-rouge&quot;&gt;hosts&lt;/code&gt;.&lt;/li&gt;
+  &lt;li&gt;Ensure that &lt;code class=&quot;highlighter-rouge&quot;&gt;ansible_host&lt;/code&gt; variable is now using domain name that matches with the subject of your member machine’s certificate and remember that your controller machine needs to be able to resolve the domain name.&lt;/li&gt;
+  &lt;li&gt;Update &lt;code class=&quot;highlighter-rouge&quot;&gt;ansible_port&lt;/code&gt; to &lt;code class=&quot;highlighter-rouge&quot;&gt;5986&lt;/code&gt; in &lt;code class=&quot;highlighter-rouge&quot;&gt;inventory/hosts&lt;/code&gt; and run &lt;code class=&quot;highlighter-rouge&quot;&gt;ansible -i inventory/hosts -m win_ping win101&lt;/code&gt;. The expected result is the same as with HTTP connection.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;It is possible to bypass certificate checks with the setting &lt;code class=&quot;highlighter-rouge&quot;&gt;ansible_winrm_server_cert_validation=ignore&lt;/code&gt;. Do &lt;strong&gt;not&lt;/strong&gt; use this setting in the production, but in case you have troubles to make the setup work, then this may be a valid test for troubleshooting.&lt;/p&gt;
+
+&lt;p&gt;The &lt;code class=&quot;highlighter-rouge&quot;&gt;hosts&lt;/code&gt; file should now look something like this:&lt;/p&gt;
+
+&lt;div class=&quot;language-ini highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nn&quot;&gt;[win]&lt;/span&gt;
+&lt;span class=&quot;err&quot;&gt;win101&lt;/span&gt; &lt;span class=&quot;py&quot;&gt;ansible_host&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;lt;host&amp;gt;.&amp;lt;domain&amp;gt;&lt;/span&gt;
+
+&lt;span class=&quot;nn&quot;&gt;[win:vars]&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_user&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;'&amp;lt;user&amp;gt;'&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_password&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;'&amp;lt;password&amp;gt;'&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_connection&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;winrm&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_winrm_transport&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;basic&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_port&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;5986 # https&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_winrm_ca_trust_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;files/win_ca.crt&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Now you can try the ` ansible -i inventory/hosts -m win_ping win101&lt;code class=&quot;highlighter-rouge&quot;&gt; command again. You can also try to run some arbitrary command like &lt;/code&gt;ansible -i inventory/hosts -m win_shell -a “whoami” win101`.&lt;/p&gt;
+
+&lt;p&gt;I’m not including any playbook examples as there is nothing Windows specific expect Ansible’s Windows modules. You can found list of Windows modules here: &lt;a href=&quot;https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html&quot;&gt;https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;kerberos-authentication-with-ansible&quot;&gt;Kerberos authentication with ansible&lt;/h2&gt;
+
+&lt;p&gt;I will create a domain user “ansible” and add that user to member machine’s local administrators group using GPO. Then I will configure Kerberos authentication for that user.&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;Create a new domain user “ansible”&lt;/p&gt;
+
+    &lt;p&gt;&lt;img src=&quot;/assets/image-20210112154933885.png&quot; alt=&quot;image-20210112154933885&quot; /&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Create a new GPO or edit existing one depending on your GPO strategy&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Open &lt;code class=&quot;highlighter-rouge&quot;&gt;Computer Configuration &amp;gt; Preferences &amp;gt; Control Panel Settings &amp;gt; Local Users and Groups&lt;/code&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Right click , select &lt;code class=&quot;highlighter-rouge&quot;&gt;New &amp;gt; Local Group&lt;/code&gt; and &lt;code class=&quot;highlighter-rouge&quot;&gt;Update&lt;/code&gt; the &lt;code class=&quot;highlighter-rouge&quot;&gt;Administrators (built-in)&lt;/code&gt; group to include the &lt;code class=&quot;highlighter-rouge&quot;&gt;ansible&lt;/code&gt; user.&lt;/p&gt;
+
+    &lt;p&gt;&lt;img src=&quot;/assets/image-20210112155708589.png&quot; alt=&quot;image-20210112155708589&quot; /&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Press &lt;code class=&quot;highlighter-rouge&quot;&gt;OK&lt;/code&gt; to save the settings&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Install Kerberos dependencies on the ansible controller&lt;/p&gt;
+
+    &lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo apt-get install python3-dev libkrb5-dev krb5-user
+pip3 install pywinrm[kerberos]
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;    &lt;/div&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Edit &lt;code class=&quot;highlighter-rouge&quot;&gt;/etc/krb5.conf&lt;/code&gt; on the controller machine and configure realm settings to match your domain:&lt;/p&gt;
+
+    &lt;div class=&quot;language-ini highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nn&quot;&gt;[libdefaults]&lt;/span&gt;
+        &lt;span class=&quot;py&quot;&gt;default_realm&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;TOIMIALUE.LOCAL&lt;/span&gt;
+        &lt;span class=&quot;py&quot;&gt;dns_lookup_realm&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;true&lt;/span&gt;
+        &lt;span class=&quot;py&quot;&gt;dns_lookup_kdc&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;true&lt;/span&gt;
+&lt;span class=&quot;nn&quot;&gt;[realms]&lt;/span&gt;
+        &lt;span class=&quot;py&quot;&gt;TOIMIALUE.LOCAL&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;{&lt;/span&gt;
+                &lt;span class=&quot;py&quot;&gt;kdc&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;DC1.TOIMIALUE.LOCAL&lt;/span&gt;
+   
+        &lt;span class=&quot;err&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;nn&quot;&gt;[domain_realm]&lt;/span&gt;
+        &lt;span class=&quot;py&quot;&gt;.toimialue.local&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;TOIMIALUE.LOCAL&lt;/span&gt;
+        &lt;span class=&quot;py&quot;&gt;toimialue.local&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;TOIMIALUE.LOCAL&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;    &lt;/div&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Change your &lt;code class=&quot;highlighter-rouge&quot;&gt;inventory/hosts&lt;/code&gt; like this:&lt;/p&gt;
+
+    &lt;div class=&quot;language-ini highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;nn&quot;&gt;[win]&lt;/span&gt;
+&lt;span class=&quot;err&quot;&gt;win101&lt;/span&gt; &lt;span class=&quot;py&quot;&gt;ansible_host&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;win101.toimialue.local&lt;/span&gt;
+   
+&lt;span class=&quot;nn&quot;&gt;[win:vars]&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_user&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;ansible@TOIMIALUE.LOCAL&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_password&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;'&amp;lt;password&amp;gt;'&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_connection&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;winrm&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_winrm_transport&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;kerberos&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_port&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;5986 # https&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_winrm_ca_trust_path&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;files/win_ca.crt&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ansible_winrm_kinit_mode&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;managed&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;    &lt;/div&gt;
+
+    &lt;ul&gt;
+      &lt;li&gt;Note that in the &lt;code class=&quot;highlighter-rouge&quot;&gt;ansible_user&lt;/code&gt; value the domain needs to be uppercase like in my example.&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Now you should be able to use Ansible with Kerberos as we have the target architecture up and running. You should now set settings &lt;code class=&quot;highlighter-rouge&quot;&gt;Allow basic authentication&lt;/code&gt; and &lt;code class=&quot;highlighter-rouge&quot;&gt;Allow unencrypted traffic&lt;/code&gt; to disabled in the GPO where you defined those settings.&lt;/p&gt;
+
+&lt;h2 id=&quot;additional-security-considerations&quot;&gt;Additional security considerations&lt;/h2&gt;
+
+&lt;p&gt;There are lots of different configuration options for things like authentication and transport security. I try to gather some additional security tips to this section. In minimum I would recommend to read &lt;a href=&quot;https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/winrmsecurity?view=powershell-7.1&quot;&gt;this&lt;/a&gt; document from Microsoft.&lt;/p&gt;
+
+&lt;h3 id=&quot;protected-users-group&quot;&gt;Protected Users group&lt;/h3&gt;
+
+&lt;p&gt;When a user is added to built-in &lt;code class=&quot;highlighter-rouge&quot;&gt;Protected User&lt;/code&gt; group the user automatically gets some extra protection. It can be a good idea to add the created “ansible” user to this group.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/winrm-ansible-protected-users.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://docs.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group&quot;&gt;Microsoft’s documentation&lt;/a&gt; specify the following protections:&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;When the signed in user is a member of the Protected Users group the following protections are applied:&lt;/p&gt;
+
+  &lt;ul&gt;
+    &lt;li&gt;Credential delegation (CredSSP) will not cache the user’s plain text credentials even when the &lt;strong&gt;Allow delegating default credentials&lt;/strong&gt; Group Policy setting is enabled.&lt;/li&gt;
+    &lt;li&gt;Beginning with Windows 8.1 and Windows Server 2012 R2, Windows Digest will not cache the user’s plain text credentials even when Windows Digest is enabled.&lt;/li&gt;
+    &lt;li&gt;NTLM will not cache the user’s plain text credentials or NT one-way function (NTOWF).&lt;/li&gt;
+    &lt;li&gt;Kerberos will no longer create DES or RC4 keys. Also it will not cache the user’s plain text credentials or long-term keys after the initial TGT is acquired.&lt;/li&gt;
+    &lt;li&gt;A cached verifier is not created at sign-in or unlock, so offline sign-in is no longer supported.&lt;/li&gt;
+  &lt;/ul&gt;
+
+  &lt;p&gt;…&lt;/p&gt;
+
+  &lt;p&gt;Accounts that are members of the Protected Users group that authenticate to a Windows Server 2012 R2 domain are unable to:&lt;/p&gt;
+
+  &lt;ul&gt;
+    &lt;li&gt;Authenticate with NTLM authentication.&lt;/li&gt;
+    &lt;li&gt;Use DES or RC4 encryption types in Kerberos pre-authentication.&lt;/li&gt;
+    &lt;li&gt;Be delegated with unconstrained or constrained delegation.&lt;/li&gt;
+    &lt;li&gt;Renew the Kerberos TGTs beyond the initial four-hour lifetime.&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;Easy way to test if the group is doing something is to RDP to some member machine using the “ansible” account. You should get this kind of response:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/winrm-ansible-protected-users-rdp.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The RDP connection is not anymore possible with this user due to the restrictions with CredSSP. Ansible connection still works with Kerberos authentication. However, I have not done excessive testing for Ansible’s different Windows modules while the ansible user is in Protected Users group.&lt;/p&gt;
+
+&lt;h3 id=&quot;unencrypted-does-not-mean-http-with-winrm&quot;&gt;Unencrypted does not mean HTTP with WinRM&lt;/h3&gt;
+
+&lt;p&gt;Something that might be a bit confusing is WinRM’s HTTP(s) listeners and &lt;code class=&quot;highlighter-rouge&quot;&gt;Allow unencrypted traffic&lt;/code&gt; setting. One could thing that unencrypted means HTTP, but this is not the case. The way I understands this is that the unencrypted communication means an authentication method which does not provide message-level encryption inside the transport layer.&lt;/p&gt;
+
+&lt;p&gt;You can test this by changing the &lt;code class=&quot;highlighter-rouge&quot;&gt;ansible_port&lt;/code&gt; setting to &lt;code class=&quot;highlighter-rouge&quot;&gt;5985 (HTTP)&lt;/code&gt; while having the &lt;code class=&quot;highlighter-rouge&quot;&gt;Allow unencrypted traffic&lt;/code&gt; disabled. The connection should still works fine when Kerberos authentication is being used.&lt;/p&gt;
+
+&lt;p&gt;If you checked &lt;a href=&quot;https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/winrmsecurity?view=powershell-7.1&quot;&gt;this&lt;/a&gt; document, that I mentioned before, you have seen the following statement:&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;It is helpful to consider the security of a PowerShell Remoting connection from two perspectives: initial authentication, and ongoing communication.&lt;/p&gt;
+
+  &lt;p&gt;Regardless of the transport protocol used (HTTP or HTTPS), WinRM always encrypts all PowerShell remoting communication after initial authentication.&lt;/p&gt;
+
+  &lt;p&gt;…&lt;/p&gt;
+
+  &lt;p&gt;When connecting over HTTP, message-level encryption is determined by initial authentication protocol used.&lt;/p&gt;
+
+  &lt;ul&gt;
+    &lt;li&gt;Basic authentication provide no encryption.&lt;/li&gt;
+    &lt;li&gt;NTLM authentication uses an RC4 cipher with a 128-bit key.&lt;/li&gt;
+    &lt;li&gt;Kerberos authentication encryption is determined by the &lt;code class=&quot;highlighter-rouge&quot;&gt;etype&lt;/code&gt; in the TGS ticket. This is AES-256 on modern systems.&lt;/li&gt;
+    &lt;li&gt;CredSSP encryption is uses the TLS cipher suite that was negotiated in the handshake.&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;&lt;a href=&quot;https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html#authentication-options&quot;&gt;Ansible’s documentation&lt;/a&gt; provides this kind of table regarding this:&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;Option&lt;/th&gt;
+      &lt;th&gt;Local Accounts&lt;/th&gt;
+      &lt;th&gt;Active Directory Accounts&lt;/th&gt;
+      &lt;th&gt;Credential Delegation&lt;/th&gt;
+      &lt;th&gt;HTTP Encryption&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Basic&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+      &lt;td&gt;No&lt;/td&gt;
+      &lt;td&gt;No&lt;/td&gt;
+      &lt;td&gt;No&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Certificate&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+      &lt;td&gt;No&lt;/td&gt;
+      &lt;td&gt;No&lt;/td&gt;
+      &lt;td&gt;No&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Kerberos&lt;/td&gt;
+      &lt;td&gt;No&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;NTLM&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+      &lt;td&gt;No&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;CredSSP&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+      &lt;td&gt;Yes&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;So, even though I configured the HTTPS listener it might be an overkill when Kerberos authentication is in use.&lt;/p&gt;</content><author><name></name></author><category term="Windows" /><category term="Security" /><category term="Ansible" /><summary type="html">This post shows how to configure a domain-joined Windows machine to be managed with Ansible. Ansible uses Windows Remote Management (WinRM) service to communicate with Windows machines. I Will use a domain with one member machine to deploy the WinRM service with a GPO and then configure the Ansible controller to use Kerberos authentication. I have also included some testing steps before the final Kerberos and WinRM over HTTPS configuration, so it’s easier to spot what’s wrong in case of an issue. Deploy WinRM service with GPO Create a new GPO or edit existing one depending on your GPO strategy. Open the GPO and go to Computer Configuration &amp;gt; Policies &amp;gt; Administrative Templates &amp;gt; Windows Components &amp;gt; Windows Remote Management (WinRM) &amp;gt; WinRM Service Open the setting Allow remote server management through WinRM Set setting to enabled and set IPv(4 6) filtering TBD I will also set Allow basic authentication and Allow unencrypted traffic to enabled for the first tests . Note that these are not needed if you only want to user Kerberos authentication with Ansible and/or do not want to test the configuration without HTTPS. Go to Go to Computer Configuration &amp;gt; Preferences &amp;gt; Control Panel Settings Right click the service and select New &amp;gt; Service Select ... next to the Service name and select the WinRM service Set the Startup to Automatic (Delayed Start) and Service action to Start service and click OK Save the GPO, go to a machine that gets settings from it, and run gpudate /force command. Run the Test-WSMan cmdlet in Powershell to verify that WinRM service is running. Testing the WinRM connection with Powershell From a machine in your domain run Enter-PSSession &amp;lt;machine with WIRM running&amp;gt;. I f you need to specify credentials for the connection then you can use something like this: $creds = Get-Credential Enter-pssession &amp;lt;your machine&amp;gt; –credential $creds Note that you will need to allow input traffic to ports 5985/TCP (HTTP) and 5986/TCP (HTTPS). You can later deny HTTP access when HTTPS is configured. First Ansible test Now you need to have a Linux machine with Ansible installed. I have a Debian machine where I install Ansible using Pip3. Install ansible using pip3 and run it inside a virtual environment: sudo apt install python3-venv python3-pip python3 -m venv ansible source ansible/bin/activate pip3 install ansible &quot;pywinrm&amp;gt;=0.3.0&quot; # Check ansible documentation for the recommended pywinrm version: # https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html Create a project structure: mkdir -p win-test/inventory &amp;amp;&amp;amp; touch win-test/inventory/hosts Add the below content to the hosts file and change your Windows host’s IP, credentials and also inventory names if you want. [win] win101 ansible_host=&amp;lt;ip or dns name here&amp;gt; [win:vars] ansible_user='&amp;lt;username&amp;gt;' ansible_password='&amp;lt;password here - hint, use ansible vault&amp;gt;' ansible_connection=winrm ansible_winrm_transport=basic ansible_port=5985 # http - defaults to https 5986 Try the connection with ` ansible -i inventory/hosts -m win_ping win101`. You should get response like this: win101 | SUCCESS =&amp;gt; { &quot;changed&quot;: false, &quot;ping&quot;: &quot;pong&quot; } If you get some errors like &quot;basic: the specified credentials were rejected by the server then check your WinRM configuration on the windows host using winrm get winrm/config command and verify that all settings are applied in the way they were specified with the GPO. Note that each setting specified with a GPO should have statement [Source=&quot;GPO&quot;]. Certificate enrollment I’m using Windows Certificate Authority to auto-enroll a Computer certificate for the member machine. I’m not going through the CA deployment, but I have not done any special configurations for this. The next steps assume that the CA service is available. Create a new GPO or edit existing one depending on your GPO strategy. Navigate to Computer Configuration &amp;gt; Policies &amp;gt; Windows Settings &amp;gt; Security Settings &amp;gt; Public Key Policies Open Certificate Services Client – Auto-Enrollment and set the setting to Enabled and check the first two settings Click OK and right click Automatic Certificate Request Settings &amp;gt; New &amp;gt; Automatic Certificate Request ... Certificate template: Computer (or if you have another template then use that here) Open Automatic Certificate Request Settings and ensure that you can see your template there. Ensure that the GPO is linked to a correct OU and go to your member machine and run gpudate /force Go to your Certificate Authority and ensure that you can see the issued certificate In your member machine, create a WinRM HTTPS listener using the command winrm quickconfig -transport:https and verify listeners using winrm enumerate winrm/config/listener Ansible test with HTTPS Export your CAs root certificate. In the CA server you can run the command certutil -ca.cert win_ca.crt to export the certificate. In ansible controller, create a directory files on the same directory level with the inventory and copy the certificate to there. Add ansible_winrm_ca_trust_path=files/win_ca.crt to the hosts. Ensure that ansible_host variable is now using domain name that matches with the subject of your member machine’s certificate and remember that your controller machine needs to be able to resolve the domain name. Update ansible_port to 5986 in inventory/hosts and run ansible -i inventory/hosts -m win_ping win101. The expected result is the same as with HTTP connection. It is possible to bypass certificate checks with the setting ansible_winrm_server_cert_validation=ignore. Do not use this setting in the production, but in case you have troubles to make the setup work, then this may be a valid test for troubleshooting. The hosts file should now look something like this: [win] win101 ansible_host=&amp;lt;host&amp;gt;.&amp;lt;domain&amp;gt; [win:vars] ansible_user='&amp;lt;user&amp;gt;' ansible_password='&amp;lt;password&amp;gt;' ansible_connection=winrm ansible_winrm_transport=basic ansible_port=5986 # https ansible_winrm_ca_trust_path=files/win_ca.crt Now you can try the ` ansible -i inventory/hosts -m win_ping win101 command again. You can also try to run some arbitrary command like ansible -i inventory/hosts -m win_shell -a “whoami” win101`. I’m not including any playbook examples as there is nothing Windows specific expect Ansible’s Windows modules. You can found list of Windows modules here: https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html Kerberos authentication with ansible I will create a domain user “ansible” and add that user to member machine’s local administrators group using GPO. Then I will configure Kerberos authentication for that user. Create a new domain user “ansible” Create a new GPO or edit existing one depending on your GPO strategy Open Computer Configuration &amp;gt; Preferences &amp;gt; Control Panel Settings &amp;gt; Local Users and Groups Right click , select New &amp;gt; Local Group and Update the Administrators (built-in) group to include the ansible user. Press OK to save the settings Install Kerberos dependencies on the ansible controller sudo apt-get install python3-dev libkrb5-dev krb5-user pip3 install pywinrm[kerberos] Edit /etc/krb5.conf on the controller machine and configure realm settings to match your domain: [libdefaults] default_realm = TOIMIALUE.LOCAL dns_lookup_realm = true dns_lookup_kdc = true [realms] TOIMIALUE.LOCAL = { kdc = DC1.TOIMIALUE.LOCAL } [domain_realm] .toimialue.local = TOIMIALUE.LOCAL toimialue.local = TOIMIALUE.LOCAL Change your inventory/hosts like this: [win] win101 ansible_host=win101.toimialue.local [win:vars] ansible_user=ansible@TOIMIALUE.LOCAL ansible_password='&amp;lt;password&amp;gt;' ansible_connection=winrm ansible_winrm_transport=kerberos ansible_port=5986 # https ansible_winrm_ca_trust_path=files/win_ca.crt ansible_winrm_kinit_mode=managed Note that in the ansible_user value the domain needs to be uppercase like in my example. Now you should be able to use Ansible with Kerberos as we have the target architecture up and running. You should now set settings Allow basic authentication and Allow unencrypted traffic to disabled in the GPO where you defined those settings. Additional security considerations There are lots of different configuration options for things like authentication and transport security. I try to gather some additional security tips to this section. In minimum I would recommend to read this document from Microsoft. Protected Users group When a user is added to built-in Protected User group the user automatically gets some extra protection. It can be a good idea to add the created “ansible” user to this group. Microsoft’s documentation specify the following protections: When the signed in user is a member of the Protected Users group the following protections are applied: Credential delegation (CredSSP) will not cache the user’s plain text credentials even when the Allow delegating default credentials Group Policy setting is enabled. Beginning with Windows 8.1 and Windows Server 2012 R2, Windows Digest will not cache the user’s plain text credentials even when Windows Digest is enabled. NTLM will not cache the user’s plain text credentials or NT one-way function (NTOWF). Kerberos will no longer create DES or RC4 keys. Also it will not cache the user’s plain text credentials or long-term keys after the initial TGT is acquired. A cached verifier is not created at sign-in or unlock, so offline sign-in is no longer supported. … Accounts that are members of the Protected Users group that authenticate to a Windows Server 2012 R2 domain are unable to: Authenticate with NTLM authentication. Use DES or RC4 encryption types in Kerberos pre-authentication. Be delegated with unconstrained or constrained delegation. Renew the Kerberos TGTs beyond the initial four-hour lifetime. Easy way to test if the group is doing something is to RDP to some member machine using the “ansible” account. You should get this kind of response: The RDP connection is not anymore possible with this user due to the restrictions with CredSSP. Ansible connection still works with Kerberos authentication. However, I have not done excessive testing for Ansible’s different Windows modules while the ansible user is in Protected Users group. Unencrypted does not mean HTTP with WinRM Something that might be a bit confusing is WinRM’s HTTP(s) listeners and Allow unencrypted traffic setting. One could thing that unencrypted means HTTP, but this is not the case. The way I understands this is that the unencrypted communication means an authentication method which does not provide message-level encryption inside the transport layer. You can test this by changing the ansible_port setting to 5985 (HTTP) while having the Allow unencrypted traffic disabled. The connection should still works fine when Kerberos authentication is being used. If you checked this document, that I mentioned before, you have seen the following statement: It is helpful to consider the security of a PowerShell Remoting connection from two perspectives: initial authentication, and ongoing communication. Regardless of the transport protocol used (HTTP or HTTPS), WinRM always encrypts all PowerShell remoting communication after initial authentication. … When connecting over HTTP, message-level encryption is determined by initial authentication protocol used. Basic authentication provide no encryption. NTLM authentication uses an RC4 cipher with a 128-bit key. Kerberos authentication encryption is determined by the etype in the TGS ticket. This is AES-256 on modern systems. CredSSP encryption is uses the TLS cipher suite that was negotiated in the handshake. Ansible’s documentation provides this kind of table regarding this: Option Local Accounts Active Directory Accounts Credential Delegation HTTP Encryption Basic Yes No No No Certificate Yes No No No Kerberos No Yes Yes Yes NTLM Yes Yes No Yes CredSSP Yes Yes Yes Yes So, even though I configured the HTTPS listener it might be an overkill when Kerberos authentication is in use.</summary></entry><entry><title type="html">Centralized log collection and monitoring (part 2)</title><link href="http://localhost:4000/2021/01/07/centralized-log-collection-and-SEC-in-home-network_part2_.html" rel="alternate" type="text/html" title="Centralized log collection and monitoring (part 2)" /><published>2021-01-07T00:00:00+02:00</published><updated>2021-01-07T00:00:00+02:00</updated><id>http://localhost:4000/2021/01/07/centralized-log-collection-and-SEC-in-home-network_part2_</id><content type="html" xml:base="http://localhost:4000/2021/01/07/centralized-log-collection-and-SEC-in-home-network_part2_.html">&lt;p&gt;This post continues with the monitoring setup introduced in the &lt;a href=&quot;https://mtask.github.io/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html&quot;&gt;part one&lt;/a&gt; of this post series. I’ll be adding some geolocation based Simple Event Correlator (SEC) rules for OpenVPN.&lt;/p&gt;
+
+&lt;h2 id=&quot;initial-setup&quot;&gt;Initial setup&lt;/h2&gt;
+
+&lt;p&gt;The starting point will be the same architecture I deployed during the previous post.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/monitorhome1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now I only need to add some SEC rules to monitor VPN connections.&lt;/p&gt;
+
+&lt;h2 id=&quot;openvpn---monitoring-flow&quot;&gt;OpenVPN - monitoring flow&lt;/h2&gt;
+
+&lt;p&gt;The main monitoring flow I want to add for OpenVPN is shown in the below diagram.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code class=&quot;language-mermaid&quot;&gt;sequenceDiagram
+    Title: country code based alerting;
+    participant openvpn logs;
+    participant SEC;
+    participant geoip_info.py
+    participant Alerta;
+    participant email;
+    SEC-&amp;gt;&amp;gt;openvpn logs: read log events
+    SEC-&amp;gt;&amp;gt;SEC: pattern matches for OpenVPN connection
+    SEC-&amp;gt;&amp;gt;SEC: extract client IP
+    SEC-&amp;gt;&amp;gt;geoip_info.py: get country code for the client IP
+    SEC-&amp;gt;&amp;gt;Alerta: generate a critical alert when country code is unexpected
+    SEC-&amp;gt;&amp;gt;email: send email when country code is unexpected
+    SEC-&amp;gt;&amp;gt;Alerta: generate an information-level alert when country code is expected
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The &lt;code class=&quot;highlighter-rouge&quot;&gt;geoip_info.py&lt;/code&gt;script is a helper tool to check country code for an IP address with SEC.&lt;/p&gt;
+
+&lt;div class=&quot;language-python highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c1&quot;&gt;#!/usr/bin/python3
+&lt;/span&gt;
+&lt;span class=&quot;kn&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;geoip2.database&lt;/span&gt;
+&lt;span class=&quot;c1&quot;&gt;# pip3 install geoip2
+&lt;/span&gt;&lt;span class=&quot;kn&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;sys&lt;/span&gt;
+
+&lt;span class=&quot;c1&quot;&gt;# sys.argv[1] --&amp;gt; Event
+# sys.argv[2] --&amp;gt; IP
+&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;len&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;!=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;sys&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;exit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;geoip_info.py &amp;lt;event&amp;gt; &amp;lt;ip&amp;gt;&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;with&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;geoip2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;database&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Reader&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;'/opt/geo/GeoLite2-Country.mmdb'&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;as&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;reader&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;try&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+       &lt;span class=&quot;n&quot;&gt;response&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;reader&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;country&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;])&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;except&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;geoip2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;errors&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;AddressNotFoundError&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+       &lt;span class=&quot;n&quot;&gt;sys&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;exit&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;address not found&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;print&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&quot;{event}:{ip}:{country_code}&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;format&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;event&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ip&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;sys&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;argv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;country_code&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;response&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;country&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;iso_code&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;The script takes two arguments. An event description and an IP address. The event descriptor is returned in output which can then be used  in SEC pattern matching. This way the script can be used with different type of events where getting the geolocation of an IP address is useful.&lt;/p&gt;
+
+&lt;p&gt;The intended use-case for the script is with SEC’s &lt;code class=&quot;highlighter-rouge&quot;&gt;spawn&lt;/code&gt; action. Spawn launches a given shell command and matches the returned standard output against its rules.&lt;/p&gt;
+
+&lt;p&gt;You may have noticed the &lt;code class=&quot;highlighter-rouge&quot;&gt;/opt/geo/GeoLite2-Country.mmdb&lt;/code&gt; in the script. That is Maxmind’s free country database for IP addresses and it can be downloaded from &lt;a href=&quot;https://dev.maxmind.com/geoip/geoip2/geolite2/&quot;&gt;here&lt;/a&gt; (requires sign-up).&lt;/p&gt;
+
+&lt;h2 id=&quot;openvpn---sec-rules&quot;&gt;OpenVPN - SEC rules&lt;/h2&gt;
+
+&lt;p&gt;The ruleset for catching new OpenVPN connections and doing some country code based correlation consists of three different rules:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Match a new connection from OpenVPN logs and use &lt;code class=&quot;highlighter-rouge&quot;&gt;spawn &lt;/code&gt; action to call &lt;code class=&quot;highlighter-rouge&quot;&gt;geoip_info.py &quot;openvpn connection for user $2&quot; $1&lt;/code&gt;  where &lt;code class=&quot;highlighter-rouge&quot;&gt;$1&lt;/code&gt; is the extracted username and &lt;code class=&quot;highlighter-rouge&quot;&gt;$2&lt;/code&gt; is the extracted IP. This returns the following like string: &lt;code class=&quot;highlighter-rouge&quot;&gt;openvpn connection for user &amp;lt;username&amp;gt;:&amp;lt;ip&amp;gt;:&amp;lt;country code&amp;gt;&lt;/code&gt;. The pattern  of the rule matches against this type of OpenVPN log lines:  &lt;code class=&quot;highlighter-rouge&quot;&gt;&amp;lt;29&amp;gt;Jan  6 17:26:44 openvpn[14231]: 1.2.3.4:24195 [user1] Peer Connection Initiated with [AF_INET]1.2.3.4:24195&lt;/code&gt;.&lt;/li&gt;
+  &lt;li&gt;Generate a critical level alert to Alerta if country code is not the expected code for VPN connections.&lt;/li&gt;
+  &lt;li&gt;Generate an information level event to Alerta if country code is the expected code for VPN connections.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Patterns in the second and third rule match against the output of the &lt;code class=&quot;highlighter-rouge&quot;&gt;geoip_info.py&lt;/code&gt; command.&lt;/p&gt;
+
+&lt;div class=&quot;language-ini highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;###########
+# OpenVPN #
+###########
+&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;# rule 1
+&lt;/span&gt;&lt;span class=&quot;py&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;Single&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ptype&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;RegExp&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;pattern&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;openvpn&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\[\d&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\]&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;: ([0-9.]+):(?:[&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\d&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;]+) &lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\[&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;([A-z0-9_-]+)&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\]&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;Peer Connection Initiated&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;desc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;New OpenVPN connection&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;action&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;spawn /opt/geo/geoip_info.py &quot;openvpn connection for user $2&quot; $1&lt;/span&gt;
+
+&lt;span class=&quot;c&quot;&gt;# rule 2
+&lt;/span&gt;&lt;span class=&quot;py&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;Single&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ptype&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;RegExp&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;pattern&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;openvpn connection for user ([A-z0-9_-]+):([0-9.]+):((?!{{ sec.vpn.expected_country }}&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\b&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\b&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;[A-Z][A-Z])&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;desc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;OpenVPN connection not from an expected country code&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;action&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;shellcmd  alerta --endpoint-url &quot;{{ alerta_api_address }}&quot; send --service sshd --resource &quot;openvpn&quot; --environment Homenet --event &quot;OpenVPN connection for user $1 from IP $2 and country $3&quot; --correlate SEC --severity critical --text &quot;$0&quot;; &lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\
+&lt;/span&gt;       &lt;span class=&quot;s&quot;&gt;shellcmd /usr/local/bin/send_email.py &quot;{{ sec_email.from }}&quot; &quot;{{ sec_email.to }}&quot; &quot;Unexpected OpenVPN connection!&quot; &quot;OpenVPN connection for user $1 from IP $2 and country $3&quot; &quot;{{ sec_email.server }}&quot; {{ sec_email.port }}&lt;/span&gt;
+
+&lt;span class=&quot;c&quot;&gt;# rule 3
+&lt;/span&gt;&lt;span class=&quot;py&quot;&gt;type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;Single&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;ptype&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;RegExp&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;pattern&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;openvpn connection for user ([A-z0-9_-]+):([0-9.]+):{{ sec.vpn.expected_country }}&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;desc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;OpenVPN connections from the expected country code&lt;/span&gt;
+&lt;span class=&quot;py&quot;&gt;action&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;shellcmd  alerta --endpoint-url &quot;{{ alerta_api_address }}&quot; send --service sshd --resource &quot;openvpn&quot; --environment Homenet --event &quot;OpenVPN connection for user $1 from IP $2 and country FI&quot; --correlate SEC --severity information --text &quot;$0&quot;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;This is how the outcome looks in Alerta when there’s a connection from the expected country.&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/monitorhome5.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;There’s not much more to it at this point. I might add more rules later when I have time to test and see log events from different type of failed events, but as this is a service exposed to the internet, there’s not point to generate alert from every poke against it.&lt;/p&gt;</content><author><name></name></author><category term="Security" /><category term="Homelab" /><summary type="html"></summary></entry><entry><title type="html">Centralized log collection and monitoring</title><link href="http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html" rel="alternate" type="text/html" title="Centralized log collection and monitoring" /><published>2021-01-03T00:00:00+02:00</published><updated>2021-01-03T00:00:00+02:00</updated><id>http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network</id><content type="html" xml:base="http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html">&lt;p&gt;From time to time, I get inspiration to tinker with monitoring my home network. Sometimes I want to test some new features in an existing solution or some new technology. Usually, it ends with some corporate-level setup that is nice for a while, but eventually, I don’t have time or interest to manage all that in my free time. Recently I have tried to implement an approach that is a bit better suited for home lab tinkering. This post is not a detailed step-by-step guide to do what I do, but more like an overview of my setup.&lt;/p&gt;
 
 &lt;p&gt;The environment that I’m monitoring looks somewhats like this:&lt;/p&gt;
 

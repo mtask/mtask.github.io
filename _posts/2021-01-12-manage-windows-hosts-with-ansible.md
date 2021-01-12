@@ -290,8 +290,6 @@ If you checked [this](https://docs.microsoft.com/en-us/powershell/scripting/lear
 > - Kerberos authentication encryption is determined by the `etype` in the TGS ticket. This is AES-256 on modern systems.
 > - CredSSP encryption is uses the TLS cipher suite that was negotiated in the handshake.
 
-
-
 [Ansible's documentation](https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html#authentication-options) provides this kind of table regarding this:
 
 | Option      | Local Accounts | Active Directory Accounts | Credential Delegation | HTTP Encryption |
@@ -301,3 +299,5 @@ If you checked [this](https://docs.microsoft.com/en-us/powershell/scripting/lear
 | Kerberos    | No             | Yes                       | Yes                   | Yes             |
 | NTLM        | Yes            | Yes                       | No                    | Yes             |
 | CredSSP     | Yes            | Yes                       | Yes                   | Yes             |
+
+So, even though I configured the HTTPS listener it might be an overkill when Kerberos authentication is in use.
