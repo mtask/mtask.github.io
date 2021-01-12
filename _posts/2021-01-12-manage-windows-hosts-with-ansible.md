@@ -14,7 +14,7 @@ Ansible uses Windows Remote Management (WinRM) service to communicate with Windo
 
 
 
-![image-20210112150034053](assets/image-20210112150034053.png)
+![image-20210112150034053](/assets/image-20210112150034053.png)
 
 I have also included some testing steps before the final Kerberos and WinRM over HTTPS configuration, so it's easier to spot what's wrong in case of an issue.
 
@@ -28,7 +28,7 @@ I have also included some testing steps before the final Kerberos and WinRM over
 
 4. Set setting to enabled and set IPv(4|6) filtering TBD
 
-   ![image-20210112101632279](assets/image-20210112101632279.png)
+   ![image-20210112101632279](/assets/image-20210112101632279.png)
 
    * I will also set `Allow basic authentication` and `Allow unencrypted traffic` to `enabled` for the first tests . Note that these are not needed if you only want to user Kerberos authentication with Ansible and/or do not want to test the configuration without HTTPS.
 
@@ -38,11 +38,11 @@ I have also included some testing steps before the final Kerberos and WinRM over
 
 7. Select `...` next to the `Service name` and select the `WinRM ` service
 
-   ![image-20210112120516929](assets/image-20210112120516929.png)
+   ![image-20210112120516929](/assets/image-20210112120516929.png)
 
 8. Set the `Startup` to `Automatic (Delayed Start)`  and `Service action` to `Start service` and click `OK`
 
-   ![image-20210112120722920](assets/image-20210112120722920.png)
+   ![image-20210112120722920](/assets/image-20210112120722920.png)
 
 9. Save the GPO, go to a machine that gets settings from it, and run `gpudate /force` command.
 
@@ -61,9 +61,9 @@ Enter-pssession <your machine> –credential $creds
 
 
 
-![image-20210112122739023](assets/image-20210112122739023.png)
+![image-20210112122739023](/assets/image-20210112122739023.png)
 
-![image-20210112122847949](assets/image-20210112122847949.png)
+![image-20210112122847949](/assets/image-20210112122847949.png)
 
 ## First Ansible test
 
@@ -117,7 +117,7 @@ I won't go through the Certificate Authority role installation, but go on from a
 
 3. Open `Certificate Services Client – Auto-Enrollment` and set the setting to `Enabled` and check the first two settings
 
-   ![image-20210112143306258](assets/image-20210112143306258.png)
+   ![image-20210112143306258](/assets/image-20210112143306258.png)
 
 4. Click `OK` and right click `Automatic Certificate Request Settings > New > Automatic Certificate Request ...`
 
@@ -125,13 +125,13 @@ I won't go through the Certificate Authority role installation, but go on from a
 
    * Open `Automatic Certificate Request Settings` and ensure that you can see your template there.
 
-     ![image-20210112143704676](assets/image-20210112143704676.png)
+     ![image-20210112143704676](/assets/image-20210112143704676.png)
 
 5. Ensure that the GPO is linked to a correct OU and go to your member machine and run `gpudate /force`
 
 6. Go to your Certificate Authority and ensure that you can see the issued certificate
 
-   ![image-20210112144348158](assets/image-20210112144348158.png)
+   ![image-20210112144348158](/assets/image-20210112144348158.png)
 
 7. In your member machine create WinRM  HTTPS listener using the command `winrm quickconfig -transport:https` and verify listeners using `winrm enumerate winrm/config/listener`
 
@@ -171,7 +171,7 @@ I will create a domain user "ansible" and add that user to member machine's loca
 
 2. Create a new domain user "ansible"
 
-   ![image-20210112154933885](assets/image-20210112154933885.png)
+   ![image-20210112154933885](/assets/image-20210112154933885.png)
 
 2. Create a new GPO or edit existing one depending on your GPO strategy
 
@@ -179,7 +179,7 @@ I will create a domain user "ansible" and add that user to member machine's loca
 
 5. Right click , select `New > Local Group` and `Update` the `Administrators (built-in)` group to include the `ansible` user.
 
-   ![image-20210112155708589](assets/image-20210112155708589.png)
+   ![image-20210112155708589](/assets/image-20210112155708589.png)
 
 6. Press `OK` to save the settings
 
