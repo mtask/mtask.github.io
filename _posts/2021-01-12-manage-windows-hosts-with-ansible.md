@@ -234,7 +234,7 @@ Now you should be able to use Ansible with Kerberos as we have the target archit
 
 There are lots of different configuration options for things like authentication and transport security. I try to gather some additional security tips to this section. In minimum I would recommend to read [this](https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/winrmsecurity?view=powershell-7.1) document from Microsoft. 
 
-### Protected Users group
+### Protect ansible user with Protected Users group
 
 When a user is added to built-in `Protected User` group the user automatically gets some extra protection. It can be a good idea to add the created "ansible" user to this group.
 
@@ -301,3 +301,60 @@ If you checked [this](https://docs.microsoft.com/en-us/powershell/scripting/lear
 | CredSSP     | Yes            | Yes                       | Yes                   | Yes             |
 
 So, even though I configured the HTTPS listener it might be an overkill when Kerberos authentication is in use.
+
+
+### Allow only required logon methods
+
+You should explicitly specify which logon methods are allowed for the Ansible user as additional protection against lateral movement.
+
+You can directly deny different logon methods with policies under "Computer Configuration > Windows Settings > Security Settings > Local Policies > User Rights Assignment". 
+
+![](/assets/winrm-ansible-allowed-logons.png)
+
+The one method you need to allow for the user is to login through the network. Other requirements may come depending on your use-cases.
+
+
+### Prevent lateral movement inside domain network
+
+Having the ability to manage AD machines with Ansible has its advantages, but the downside with security is that you have to allow an additional remote access method (WinRM). 
+
+You also need a user with high-privileges on the managed systems. How high-privileged depends on your use-cases, but usually at least local administrator rights on the managed machines.
+
+One mitigation against these threats is network filtering between hosts in the domain network. Usually, this means filtering in host firewalls of member machines.
+
+Enabling WinRM creates default firewall rules where access is allowed from private networks and denied from public networks. Meaning that an attacker who has gained an initial foothold on your network and has credentials with permission to use WinRM can move laterally between hosts.
+
+You should explicitly set firewall rules that restrict WinRM access only to necessary hosts. If you are only using it for Ansible, then allow access only from the Ansible controller.
+
+![](/assets/winrm-ansible-firewall.png)
+
+
+### Protect controller machine
+
+The Ansible controller machine can be a very lucrative target for attackers. It usually provides high-privilege access to multiple machines and can contain secrets like user credentials.
+
+There's no official solution of where and how to implement the Ansible controller. It can be a separate server or a system administrator's laptop, but the machine has to run some UNIX based operating system. Ansible project does not support Windows machines as a controller.
+
+I prefer a separate server that can be better isolated and monitored than, for example, sysadmin laptops. One solution is to have a separate network segment for the controller where all traffic would go through a firewall. In the use-case of this post, an example architecture could like one in the below picture.
+
+![](/assets/winrm-ansible-segmentation.png)
+
+For secret-management, Ansible provides a solution called Ansible vault. It allows you to encrypt files and in-line strings. This way, there's no need to store secrets in plaintext.
+
+### Tier model for priviliged access
+
+When planning the access for Ansible in your domain environment, you should plan the privilege model in the same way you would do with a human administrator.
+
+I have only shown examples with one controller machine and one user account to run Ansible on member machines. However, it may not be the best option if you want to manage the whole Active Directory environment with Ansible.
+
+If you only want to manage, for example, a few servers with similar security requirements, then it does make sense to have one account for this, which is only allowed to access those specific servers. 
+
+When you want to manage machines with different security-levels, like DCs and member servers, you should have separate user accounts for each security level. A  minimal separation would be something like in the below picture.
+
+![](/assets/winrm-ansible-users.png)
+
+So, technically this is the same solution that Microsoft recommends for Active Directory administration in general.  Check these documents for more information:
+
+- [https://docs.microsoft.com/en-us/microsoft-identity-manager/pam/tier-model-for-partitioning-administrative-privileges](https://docs.microsoft.com/en-us/microsoft-identity-manager/pam/tier-model-for-partitioning-administrative-privileges)
+- [https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/protecting-domain-administrative-credentials/ba-p/259210](https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/protecting-domain-administrative-credentials/ba-p/259210)
+
