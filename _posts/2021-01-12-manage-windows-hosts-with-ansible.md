@@ -163,7 +163,7 @@ ansible_port=5986 # https
 ansible_winrm_ca_trust_path=files/win_ca.crt
 ```
 
-Now you can try the ` ansible -i inventory/hosts -m win_ping win101` command again. You can also try to run some arbitrary command like `ansible -i inventory/hosts -m win_shell -a "whoami" win101`.
+Now you can try the `ansible -i inventory/hosts -m win_ping win101` command again. You can also try some arbitrary command with `win_shell` module. For example: `ansible -i inventory/hosts -m win_shell -a "whoami" win101`.
 
 I'm not including any playbook examples as there is nothing Windows specific expect Ansible's Windows modules. You can found list of Windows modules here: [https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html](https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html)
 
