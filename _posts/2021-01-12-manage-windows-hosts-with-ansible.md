@@ -165,7 +165,7 @@ ansible_winrm_ca_trust_path=files/win_ca.crt
 
 Now you can try the `ansible -i inventory/hosts -m win_ping win101` command again. You can also try some arbitrary command with `win_shell` module. For example: `ansible -i inventory/hosts -m win_shell -a "whoami" win101`.
 
-I'm not including any playbook examples as there is nothing Windows specific expect Ansible's Windows modules. You can found list of Windows modules here: [https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html](https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html)
+I'm not including any playbook examples as there really isn't anything Windows specific with those except that Ansible's Windows modules are mostly used. You can found list of Windows modules here: [https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html](https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html)
 
 
 ## Kerberos authentication with ansible
