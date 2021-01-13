@@ -96,7 +96,7 @@ ansible_winrm_transport=basic
 ansible_port=5985 # http - defaults to https 5986
 ```
 
-4. Try the connection with ` ansible -i inventory/hosts -m win_ping win101`. You should get response like this:
+4. Try the connection with `ansible -i inventory/hosts -m win_ping win101`. You should get response like this:
 
    ```json
    win101 | SUCCESS => {
@@ -300,8 +300,11 @@ If you checked [this](https://docs.microsoft.com/en-us/powershell/scripting/lear
 | NTLM        | Yes            | Yes                       | No                    | Yes             |
 | CredSSP     | Yes            | Yes                       | Yes                   | Yes             |
 
-So, even though I configured the HTTPS listener it might be an overkill when Kerberos authentication is in use.
+So, even though I configured the HTTPS listener, it might be overkill with Kerberos authentication. However, as one can guess, the HTTP protocol itself is plaintext while the body is encrypted. Below is an example of traffic from Ansible play.
 
+![](/assets/winrm-ansible-http.png)
+
+I just want to point out that in a man-in-the-middle attack scenario, there is more attack surface. With suitable vulnerability in WinRM service or client (pywinrm), HTTPS can provide a needed extra security layer.
 
 ### Allow only required logon methods
 
