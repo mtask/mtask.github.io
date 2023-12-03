@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Debugging Ansible modules | Blog</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="Debugging Ansible modules" />
+<meta name="author" content="mtask" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="cybersecurity, homelab tinkering, etc." />
+<meta property="og:description" content="cybersecurity, homelab tinkering, etc." />
+<link rel="canonical" href="http://localhost:4000/2020/04/23/debug_with_ansible.html" />
+<meta property="og:url" content="http://localhost:4000/2020/04/23/debug_with_ansible.html" />
+<meta property="og:site_name" content="Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-04-23T00:00:00+03:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Debugging Ansible modules" />
+<script type="application/ld+json">
+{"@type":"BlogPosting","headline":"Debugging Ansible modules","dateModified":"2020-04-23T00:00:00+03:00","datePublished":"2020-04-23T00:00:00+03:00","url":"http://localhost:4000/2020/04/23/debug_with_ansible.html","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/04/23/debug_with_ansible.html"},"author":{"@type":"Person","name":"mtask"},"description":"cybersecurity, homelab tinkering, etc.","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Blog" />
+</head>
+<body><header class="site-header">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/">/posts</a><a class="page-link" href="/whoami/">/whoami</a><a class="page-link" href="/categories/">/categories</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Debugging Ansible modules</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-04-23T00:00:00+03:00" itemprop="datePublished">Apr 23, 2020
+      </time></p>
+   </header>
+  <div class="post-categories">
+    
+    [
+    <a href="/categories/#Ansible">Ansible</a>
+    
+    ]
+  </div>
+  <div id="toc"></div>
+  <div class="post-content e-content" itemprop="articleBody">
+    
+<p>This is a small tutorial where I show how to dive inside Ansible’s python modules in error debugging. This has been a useful trick when I have had an error with a module, and no matter how much verbosity I add, or use <code class="language-plaintext highlighter-rouge">DEBUG=1</code>, I still couldn’t figure out what was the reason for the error. I’m sure there’s more official way to debug modules, but so far, this way has covered my needs.</p>
+
+<p>I’m not explaining regular Ansible usage, so following this requires some prior knowledge.</p>
+
+<h2 id="create-a-new-playbook-for-testing">Create a new playbook for testing</h2>
+
+<p>The directory structure for the playbook:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>testplay/
+├── hosts
+└── test_play.yml
+</code></pre></div></div>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">test_play.yml</code> file content:</li>
+</ul>
+
+<div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">---</span>
+<span class="pi">-</span> <span class="na">hosts</span><span class="pi">:</span> <span class="s">testmachines</span>
+  <span class="na">tasks</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Try</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">add</span><span class="nv"> </span><span class="s">user"</span>
+      <span class="na">user</span><span class="pi">:</span>
+        <span class="na">name</span><span class="pi">:</span> <span class="s2">"</span><span class="s">bob"</span>
+</code></pre></div></div>
+
+<p>Spoiler alert, the play is missing <code class="language-plaintext highlighter-rouge">become: yes</code> (unless executed as root). I was lazy to create some complex error scenario, so I just use this to demonstrate the concept.</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">hosts</code> file content:</li>
+</ul>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[testmachines]
+&lt;YOUR_SERVER&gt; ansible_user=&lt;YOUR_USER&gt;
+</code></pre></div></div>
+
+<h2 id="test-the-playbook">Test the playbook</h2>
+
+<p>Let’s just run the playbook and see that we are getting the error as we expected. Like said, I just didn’t figure out a better scenario, for now, so just imagine that the error is something where you have no idea what is causing it.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span>ansible-playbook <span class="nt">-i</span> hosts test_play.yml
+
+PLAY <span class="o">[</span>testmachines] <span class="k">***********************************************************************************************************************************************************************************************</span>
+
+TASK <span class="o">[</span>Try to add user] <span class="k">********************************************************************************************************************************************************************************************</span>
+<span class="o">[</span>WARNING]: Platform linux on host 1.2.3.4 is using the discovered Python interpreter at /usr/bin/python, but future installation of another Python interpreter could change this. See
+https://docs.ansible.com/ansible/2.9/reference_appendices/interpreter_discovery.html <span class="k">for </span>more information.
+fatal: <span class="o">[</span>1.2.3.4]: FAILED! <span class="o">=&gt;</span> <span class="o">{</span><span class="s2">"ansible_facts"</span>: <span class="o">{</span><span class="s2">"discovered_interpreter_python"</span>: <span class="s2">"/usr/bin/python"</span><span class="o">}</span>, <span class="s2">"changed"</span>: <span class="nb">false</span>, <span class="s2">"msg"</span>: <span class="s2">"useradd: Permission denied.</span><span class="se">\n</span><span class="s2">useradd: cannot lock /etc/passwd; try again later.</span><span class="se">\n</span><span class="s2">"</span>, <span class="s2">"name"</span>: <span class="s2">"bob"</span>, <span class="s2">"rc"</span>: 1<span class="o">}</span>
+
+PLAY RECAP <span class="k">********************************************************************************************************************************************************************************************************</span>
+1.2.3.4            : <span class="nv">ok</span><span class="o">=</span>0    <span class="nv">changed</span><span class="o">=</span>0    <span class="nv">unreachable</span><span class="o">=</span>0    <span class="nv">failed</span><span class="o">=</span>1    <span class="nv">skipped</span><span class="o">=</span>0    <span class="nv">rescued</span><span class="o">=</span>0    <span class="nv">ignored</span><span class="o">=</span>0   
+</code></pre></div></div>
+
+<p>Use <code class="language-plaintext highlighter-rouge">--ask-pass</code> if you don’t have SSH keys configured with the target machine.</p>
+
+<h2 id="keep-remote-files">Keep remote files</h2>
+
+<p>When Ansible executes tasks it will move bunch of Python scripts to remote host and then executes those scripts. Usually it will remove these files after the execution. By specifying <code class="language-plaintext highlighter-rouge">ANSIBLE_KEEP_REMOTE_FILES</code> variable to <code class="language-plaintext highlighter-rouge">1</code>,  Ansible won’t remove these files from the remote host.</p>
+
+<p>Now execute the playbook this way and include some verbosity flags.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ ANSIBLE_KEEP_REMOTE_FILES</span><span class="o">=</span>1 ansible-playbook <span class="nt">-vvvv</span> <span class="nt">-i</span> hosts test_play.yml 
+ansible-playbook 2.9.6
+...[debug output]...
+<span class="s2">"'"</span><span class="s1">'/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py &amp;&amp; sleep 0'</span><span class="s2">"'"</span><span class="s1">''</span>
+...
+fatal: <span class="o">[</span>1.2.3.4]: FAILED! <span class="o">=&gt;</span> <span class="o">{</span>
+....
+</code></pre></div></div>
+
+<p>Search the output for lines like <code class="language-plaintext highlighter-rouge">"'"'/usr/bin/python /home/&lt;ansible_user&gt;/.ansible/tmp.[..snip..]..AnsiballZ_user.py &amp;&amp; sleep 0'"'"''</code> and copy the python command from the last matching line.</p>
+
+<p>Next, SSH into your remote host and execute the python command.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span>/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+<span class="o">{</span><span class="s2">"msg"</span>: <span class="s2">"useradd: Permission denied.</span><span class="se">\n</span><span class="s2">useradd: cannot lock /etc/passwd; try again later.</span><span class="se">\n</span><span class="s2">"</span>, <span class="s2">"failed"</span>: <span class="nb">true</span>, <span class="s2">"rc"</span>: 1, <span class="s2">"name"</span>: <span class="s2">"bob"</span>, <span class="s2">"invocation"</span>: <span class="o">{</span><span class="s2">"module_args"</span>: <span class="o">{</span><span class="s2">"comment"</span>: null, <span class="s2">"ssh_key_bits"</span>: 0, <span class="s2">"update_password"</span>: <span class="s2">"always"</span>, <span class="s2">"non_unique"</span>: <span class="nb">false</span>, <span class="s2">"force"</span>: <span class="nb">false</span>, <span class="s2">"ssh_key_type"</span>: <span class="s2">"rsa"</span>, <span class="s2">"create_home"</span>: <span class="nb">true</span>, <span class="s2">"password_lock"</span>: null, <span class="s2">"ssh_key_passphrase"</span>: null, <span class="s2">"uid"</span>: null, <span class="s2">"home"</span>: null, <span class="s2">"append"</span>: <span class="nb">false</span>, <span class="s2">"skeleton"</span>: null, <span class="s2">"ssh_key_comment"</span>: <span class="s2">"ansible-generated on mc1"</span>, <span class="s2">"group"</span>: null, <span class="s2">"system"</span>: <span class="nb">false</span>, <span class="s2">"state"</span>: <span class="s2">"present"</span>, <span class="s2">"role"</span>: null, <span class="s2">"hidden"</span>: null, <span class="s2">"local"</span>: null, <span class="s2">"authorization"</span>: null, <span class="s2">"profile"</span>: null, <span class="s2">"shell"</span>: null, <span class="s2">"expires"</span>: null, <span class="s2">"ssh_key_file"</span>: null, <span class="s2">"groups"</span>: null, <span class="s2">"move_home"</span>: <span class="nb">false</span>, <span class="s2">"password"</span>: null, <span class="s2">"name"</span>: <span class="s2">"bob"</span>, <span class="s2">"seuser"</span>: null, <span class="s2">"remove"</span>: <span class="nb">false</span>, <span class="s2">"login_class"</span>: null, <span class="s2">"generate_ssh_key"</span>: null<span class="o">}}}</span>
+</code></pre></div></div>
+
+<p>It’s the same error message we had during the playbook execution, so we have the correct file.</p>
+
+<h2 id="extract-modules-from-the-remote-files">Extract modules from the remote files</h2>
+
+<p>I haven’t look into ansible file structure too deeply, but enough to know that modules are not directly in this file. Instead, the file includes variable <code class="language-plaintext highlighter-rouge">ZIPDATA</code>, and its value contains a Base64 encoded zip file.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span><span class="nb">grep </span>ZIPDATA /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+ZIPDATA <span class="o">=</span> <span class="s2">"""UEsDBBQAAAAIAAScllCdxfFrNwAAAEgAAAAgAAAAYW5zaW...
+</span></code></pre></div></div>
+
+<p>Let’s extract the B64 encoded portion, decode it, and create a zip file from the output.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~$ grep -oP '"""(.*?)"""' /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py | tr -d \" | base64 -d &gt; zipfile.zip
+~$ file zipfile.zip 
+zipfile.zip: Zip archive data, at least v2.0 to extract
+
+</code></pre></div></div>
+
+<p>Now unzip the file:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span>unzip zipfile.zip 
+Archive:  zipfile.zip
+  inflating: ansible/module_utils/__init__.py  
+  inflating: ansible/__init__.py     
+  inflating: ansible/module_utils/basic.py  
+  inflating: ansible/module_utils/distro/__init__.py  
+  inflating: ansible/module_utils/_text.py  
+  inflating: ansible/module_utils/common/text/formatters.py  
+  inflating: ansible/module_utils/common/valusertion.py  
+  inflating: ansible/module_utils/common/text/converters.py  
+  inflating: ansible/module_utils/pycompat24.py  
+  inflating: ansible/module_utils/common/__init__.py  
+  inflating: ansible/module_utils/common/text/__init__.py  
+  inflating: ansible/module_utils/common/process.py  
+  inflating: ansible/module_utils/parsing/convert_bool.py  
+  inflating: ansible/module_utils/common/_utils.py  
+  inflating: ansible/module_utils/common/_collections_compat.py  
+  inflating: ansible/module_utils/parsing/__init__.py  
+  inflating: ansible/module_utils/common/_json_compat.py  
+  inflating: ansible/module_utils/six/__init__.py  
+  inflating: ansible/module_utils/common/sys_info.py  
+  inflating: ansible/module_utils/common/parameters.py  
+  inflating: ansible/module_utils/common/file.py  
+  inflating: ansible/module_utils/common/collections.py  
+  inflating: ansible/module_utils/distro/_distro.py  
+  inflating: ansible/modules/system/user.py  
+  inflating: ansible/modules/__init__.py  
+  inflating: ansible/modules/system/__init__.py  
+</code></pre></div></div>
+
+<h2 id="search-for-the-needed-module">Search for the needed module</h2>
+
+<p>We know that our error happened during the task, which was using the user module. Check Ansible’s <a href="https://docs.ansible.com/ansible/latest/modules/user_module.html">documentation</a> for that module. Inside the documentation page, there is an <em>Edit on GitHub</em> link, and by following the link, you can see that <code class="language-plaintext highlighter-rouge">user.py</code> is the python file for the module.</p>
+
+<p>Search <code class="language-plaintext highlighter-rouge">user.py</code> from the unzipped folder:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span>find ./ansible/ <span class="nt">-name</span> <span class="s2">"user.py"</span>
+./ansible/modules/system/user.py
+</code></pre></div></div>
+
+<p>Open the file and add <code class="language-plaintext highlighter-rouge">print("Our debug test")</code> line to <code class="language-plaintext highlighter-rouge">create_user</code> method inside the module.</p>
+
+<ul>
+  <li>So, from:
+    <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">create_user</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+ <span class="c1"># by default we use the create_user_useradd method
+</span> <span class="k">return</span> <span class="bp">self</span><span class="p">.</span><span class="n">create_user_useradd</span><span class="p">()</span> 
+</code></pre></div>    </div>
+  </li>
+  <li>To:
+    <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">create_user</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+ <span class="c1"># by default we use the create_user_useradd method
+</span> <span class="k">print</span><span class="p">(</span><span class="s">"Our debug test"</span><span class="p">)</span>
+ <span class="k">return</span> <span class="bp">self</span><span class="p">.</span><span class="n">create_user_useradd</span><span class="p">()</span>
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<p>Next:</p>
+
+<ol>
+  <li>Zip the <code class="language-plaintext highlighter-rouge">ansible</code> folder:</li>
+</ol>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span>zip <span class="nt">-r</span> newzip.zip ansible
+</code></pre></div></div>
+
+<ol>
+  <li>B64 encode the content, and forward stdout to bottom of the <code class="language-plaintext highlighter-rouge">AnsiballZ_user.py</code> file.</li>
+</ol>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">cat </span>newzip.zip | <span class="nb">base64</span> <span class="nt">-w</span> 0 <span class="o">&gt;&gt;</span> /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+</code></pre></div></div>
+
+<ol>
+  <li>Open the file</li>
+  <li>Cut the new encoded value from the file’s last line.</li>
+  <li>Replace <code class="language-plaintext highlighter-rouge">ZIPFILE</code> variable’s old value with the new value</li>
+  <li>Close the file</li>
+  <li>Execute the script again</li>
+</ol>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span>/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+</code></pre></div></div>
+
+<ol>
+  <li>Check output (Hint: you should now see <em>Our debug test</em> in the output )</li>
+</ol>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>~<span class="nv">$ </span>/usr/bin/python /home/user/.ansible/tmp/ansible-tmp-1587573128.18-1362966474151/AnsiballZ_user.py
+Our debug <span class="nb">test</span>
+
+<span class="o">{</span><span class="s2">"msg"</span>: <span class="s2">"useradd: Permission denied.</span><span class="se">\n</span><span class="s2">useradd: cannot lock /etc/passwd; try again later.</span><span class="se">\n</span><span class="s2">"</span>, <span class="s2">"failed"</span>: <span class="nb">true</span>, <span class="s2">"rc"</span>: 1, <span class="s2">"name"</span>: <span class="s2">"bob"</span>, <span class="s2">"invocation"</span>: <span class="o">{</span><span class="s2">"module_args"</span>: <span class="o">{</span><span class="s2">"comment"</span>: null, <span class="s2">"ssh_key_bits"</span>: 0, <span class="s2">"update_password"</span>: <span class="s2">"always"</span>, <span class="s2">"non_unique"</span>: <span class="nb">false</span>, <span class="s2">"force"</span>: <span class="nb">false</span>, <span class="s2">"ssh_key_type"</span>: <span class="s2">"rsa"</span>, <span class="s2">"create_home"</span>: <span class="nb">true</span>, <span class="s2">"password_lock"</span>: null, <span class="s2">"ssh_key_passphrase"</span>: null, <span class="s2">"uid"</span>: null, <span class="s2">"home"</span>: null, <span class="s2">"append"</span>: <span class="nb">false</span>, <span class="s2">"skeleton"</span>: null, <span class="s2">"ssh_key_comment"</span>: <span class="s2">"ansible-generated on mc1"</span>, <span class="s2">"group"</span>: null, <span class="s2">"system"</span>: <span class="nb">false</span>, <span class="s2">"state"</span>: <span class="s2">"present"</span>, <span class="s2">"role"</span>: null, <span class="s2">"hidden"</span>: null, <span class="s2">"local"</span>: null, <span class="s2">"authorization"</span>: null, <span class="s2">"profile"</span>: null, <span class="s2">"shell"</span>: null, <span class="s2">"expires"</span>: null, <span class="s2">"ssh_key_file"</span>: null, <span class="s2">"groups"</span>: null, <span class="s2">"move_home"</span>: <span class="nb">false</span>, <span class="s2">"password"</span>: null, <span class="s2">"name"</span>: <span class="s2">"bob"</span>, <span class="s2">"seuser"</span>: null, <span class="s2">"remove"</span>: <span class="nb">false</span>, <span class="s2">"login_class"</span>: null, <span class="s2">"generate_ssh_key"</span>: null<span class="o">}}}</span>
+</code></pre></div></div>
+
+<h2 id="recap">Recap</h2>
+
+<p>Printing <em>Our debug test</em> may not have been the most useful thing to do, but I hope you see the potential value with a more complex error situation. You can, for example, add multiple print statements to see where execution stops inside the module, or you can do some more advanced python debugging.</p>
+
+  </div><a class="u-url" href="/2020/04/23/debug_with_ansible.html" hidden></a>
+</article>
+
+<!-- TOC -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="/js/toc.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    $('#toc').toc();
+});
+</script>
+
+
+<!-- mermaid -->
+<script>
+var config = {
+    startOnLoad:true,
+    theme: 'forest',
+    flowchart:{
+            useMaxWidth:false,
+            htmlLabels:true
+        }
+};
+mermaid.initialize(config);
+window.mermaid.init(undefined, document.querySelectorAll('.language-mermaid'));
+</script>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col">
+        <p class="feed-subscribe">
+          <a href="/feed.xml">
+            <svg class="svg-icon orange">
+              <use xlink:href="/assets/minima-social-icons.svg#rss"></use>
+            </svg><span>Subscribe</span>
+          </a>
+        </p>
+        <ul class="contact-list">
+          <li class="p-name">mtask</li>
+          <li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li><li><a href="/files/publickey.mtask.gh@protonmail.com.asc">8949b98a4e63585fe3bf6a953b9fd3e9ad04482e (gpg)</a></li></ul>
+      </div>
+      <div class="footer-col">
+        <p>cybersecurity, homelab tinkering, etc.</p>
+      </div>
+    </div>
+
+    <div class="social-links"><ul class="social-media-list"><li><a rel="me" href="https://github.com/mtask" title="mtask"><svg class="svg-icon grey"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg></a></li></ul>
+</div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

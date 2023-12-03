@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Manage domain-joined Windows machines with Ansible | Blog</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="Manage domain-joined Windows machines with Ansible" />
+<meta name="author" content="mtask" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="This post shows how to configure a domain-joined Windows machine to be managed with Ansible. Ansible uses Windows Remote Management (WinRM) service to communicate with Windows machines. I Will use a domain with one member machine to deploy the WinRM service with a GPO and then configure the Ansible controller to use Kerberos authentication. I have also included some testing steps before the final Kerberos and WinRM over HTTPS configuration, so it’s easier to spot what’s wrong in case of an issue. Deploy WinRM service with GPO Create a new GPO or edit existing one depending on your GPO strategy. Open the GPO and go to Computer Configuration &gt; Policies &gt; Administrative Templates &gt; Windows Components &gt; Windows Remote Management (WinRM) &gt; WinRM Service Open the setting Allow remote server management through WinRM Set setting to enabled and set IPv(4 6) filtering TBD I will also set Allow basic authentication and Allow unencrypted traffic to enabled for the first tests . Note that these are not needed if you only want to user Kerberos authentication with Ansible and/or do not want to test the configuration without HTTPS. Go to Go to Computer Configuration &gt; Preferences &gt; Control Panel Settings Right click the service and select New &gt; Service Select ... next to the Service name and select the WinRM service Set the Startup to Automatic (Delayed Start) and Service action to Start service and click OK Save the GPO, go to a machine that gets settings from it, and run gpudate /force command. Run the Test-WSMan cmdlet in Powershell to verify that WinRM service is running. Testing the WinRM connection with Powershell From a machine in your domain run Enter-PSSession &lt;machine with WIRM running&gt;. I f you need to specify credentials for the connection then you can use something like this: $creds = Get-Credential Enter-pssession &lt;your machine&gt; –credential $creds Note that you will need to allow input traffic to ports 5985/TCP (HTTP) and 5986/TCP (HTTPS). You can later deny HTTP access when HTTPS is configured. First Ansible test Now you need to have a Linux machine with Ansible installed. I have a Debian machine where I install Ansible using Pip3. Install ansible using pip3 and run it inside a virtual environment: sudo apt install python3-venv python3-pip python3 -m venv ansible source ansible/bin/activate pip3 install ansible &quot;pywinrm&gt;=0.3.0&quot; # Check ansible documentation for the recommended pywinrm version: # https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html Create a project structure: mkdir -p win-test/inventory &amp;&amp; touch win-test/inventory/hosts Add the below content to the hosts file and change your Windows host’s IP, credentials and also inventory names if you want. [win] win101 ansible_host=&lt;ip or dns name here&gt; [win:vars] ansible_user=&#39;&lt;username&gt;&#39; ansible_password=&#39;&lt;password here - hint, use ansible vault&gt;&#39; ansible_connection=winrm ansible_winrm_transport=basic ansible_port=5985 # http - defaults to https 5986 Try the connection with ansible -i inventory/hosts -m win_ping win101. You should get response like this: win101 | SUCCESS =&gt; { &quot;changed&quot;: false, &quot;ping&quot;: &quot;pong&quot; } If you get some errors like &quot;basic: the specified credentials were rejected by the server then check your WinRM configuration on the windows host using winrm get winrm/config command and verify that all settings are applied in the way they were specified with the GPO. Note that each setting specified with a GPO should have statement [Source=&quot;GPO&quot;]. Certificate enrollment I’m using Windows Certificate Authority to auto-enroll a Computer certificate for the member machine. I’m not going through the CA deployment, but I have not done any special configurations for this. The next steps assume that the CA service is available. Create a new GPO or edit existing one depending on your GPO strategy. Navigate to Computer Configuration &gt; Policies &gt; Windows Settings &gt; Security Settings &gt; Public Key Policies Open Certificate Services Client – Auto-Enrollment and set the setting to Enabled and check the first two settings Click OK and right click Automatic Certificate Request Settings &gt; New &gt; Automatic Certificate Request ... Certificate template: Computer (or if you have another template then use that here) Open Automatic Certificate Request Settings and ensure that you can see your template there. Ensure that the GPO is linked to a correct OU and go to your member machine and run gpudate /force Go to your Certificate Authority and ensure that you can see the issued certificate In your member machine, create a WinRM HTTPS listener using the command winrm quickconfig -transport:https and verify listeners using winrm enumerate winrm/config/listener Ansible test with HTTPS Export your CAs root certificate. In the CA server you can run the command certutil -ca.cert win_ca.crt to export the certificate. In ansible controller, create a directory files on the same directory level with the inventory and copy the certificate to there. Add ansible_winrm_ca_trust_path=files/win_ca.crt to the hosts. Ensure that ansible_host variable is now using domain name that matches with the subject of your member machine’s certificate and remember that your controller machine needs to be able to resolve the domain name. Update ansible_port to 5986 in inventory/hosts and run ansible -i inventory/hosts -m win_ping win101. The expected result is the same as with HTTP connection. It is possible to bypass certificate checks with the setting ansible_winrm_server_cert_validation=ignore. Do not use this setting in the production, but in case you have troubles to make the setup work, then this may be a valid test for troubleshooting. The hosts file should now look something like this: [win] win101 ansible_host=&lt;host&gt;.&lt;domain&gt; [win:vars] ansible_user=&#39;&lt;user&gt;&#39; ansible_password=&#39;&lt;password&gt;&#39; ansible_connection=winrm ansible_winrm_transport=basic ansible_port=5986 # https ansible_winrm_ca_trust_path=files/win_ca.crt Now you can try the ansible -i inventory/hosts -m win_ping win101 command again. You can also try some arbitrary command with win_shell module. For example: ansible -i inventory/hosts -m win_shell -a &quot;whoami&quot; win101. I’m not including any playbook examples as there really isn’t anything Windows specific with those except that Ansible’s Windows modules are mostly used. You can found list of Windows modules here: https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html Kerberos authentication with ansible I will create a domain user “ansible” and add that user to member machine’s local administrators group using GPO. Then I will configure Kerberos authentication for that user. Create a new domain user “ansible” Create a new GPO or edit existing one depending on your GPO strategy Open Computer Configuration &gt; Preferences &gt; Control Panel Settings &gt; Local Users and Groups Right click , select New &gt; Local Group and Update the Administrators (built-in) group to include the ansible user. Press OK to save the settings Install Kerberos dependencies on the ansible controller sudo apt-get install python3-dev libkrb5-dev krb5-user pip3 install pywinrm[kerberos] Edit /etc/krb5.conf on the controller machine and configure realm settings to match your domain: [libdefaults] default_realm = TOIMIALUE.LOCAL dns_lookup_realm = true dns_lookup_kdc = true [realms] TOIMIALUE.LOCAL = { kdc = DC1.TOIMIALUE.LOCAL } [domain_realm] .toimialue.local = TOIMIALUE.LOCAL toimialue.local = TOIMIALUE.LOCAL Change your inventory/hosts like this: [win] win101 ansible_host=win101.toimialue.local [win:vars] ansible_user=ansible@TOIMIALUE.LOCAL ansible_password=&#39;&lt;password&gt;&#39; ansible_connection=winrm ansible_winrm_transport=kerberos ansible_port=5986 # https ansible_winrm_ca_trust_path=files/win_ca.crt ansible_winrm_kinit_mode=managed Note that in the ansible_user value the domain needs to be uppercase like in my example. Now you should be able to use Ansible with Kerberos as we have the target architecture up and running. You should now set settings Allow basic authentication and Allow unencrypted traffic to disabled in the GPO where you defined those settings. Additional security considerations There are lots of different configuration options for things like authentication and transport security. I try to gather some additional security tips to this section. In minimum I would recommend to read this document from Microsoft. Protect ansible user with Protected Users group When a user is added to built-in Protected User group the user automatically gets some extra protection. It can be a good idea to add the created “ansible” user to this group. Microsoft’s documentation specify the following protections: When the signed in user is a member of the Protected Users group the following protections are applied: Credential delegation (CredSSP) will not cache the user’s plain text credentials even when the Allow delegating default credentials Group Policy setting is enabled. Beginning with Windows 8.1 and Windows Server 2012 R2, Windows Digest will not cache the user’s plain text credentials even when Windows Digest is enabled. NTLM will not cache the user’s plain text credentials or NT one-way function (NTOWF). Kerberos will no longer create DES or RC4 keys. Also it will not cache the user’s plain text credentials or long-term keys after the initial TGT is acquired. A cached verifier is not created at sign-in or unlock, so offline sign-in is no longer supported. … Accounts that are members of the Protected Users group that authenticate to a Windows Server 2012 R2 domain are unable to: Authenticate with NTLM authentication. Use DES or RC4 encryption types in Kerberos pre-authentication. Be delegated with unconstrained or constrained delegation. Renew the Kerberos TGTs beyond the initial four-hour lifetime. Easy way to test if the group is doing something is to RDP to some member machine using the “ansible” account. You should get this kind of response: The RDP connection is not anymore possible with this user due to the restrictions with CredSSP. Ansible connection still works with Kerberos authentication. However, I have not done excessive testing for Ansible’s different Windows modules while the ansible user is in Protected Users group. Unencrypted does not mean HTTP with WinRM Something that might be a bit confusing is WinRM’s HTTP(s) listeners and Allow unencrypted traffic setting. One could thing that unencrypted means HTTP, but this is not the case. The way I understands this is that the unencrypted communication means an authentication method which does not provide message-level encryption inside the transport layer. You can test this by changing the ansible_port setting to 5985 (HTTP) while having the Allow unencrypted traffic disabled. The connection should still works fine when Kerberos authentication is being used. If you checked this document, that I mentioned before, you have seen the following statement: It is helpful to consider the security of a PowerShell Remoting connection from two perspectives: initial authentication, and ongoing communication. Regardless of the transport protocol used (HTTP or HTTPS), WinRM always encrypts all PowerShell remoting communication after initial authentication. … When connecting over HTTP, message-level encryption is determined by initial authentication protocol used. Basic authentication provide no encryption. NTLM authentication uses an RC4 cipher with a 128-bit key. Kerberos authentication encryption is determined by the etype in the TGS ticket. This is AES-256 on modern systems. CredSSP encryption is uses the TLS cipher suite that was negotiated in the handshake. Ansible’s documentation provides this kind of table regarding this: Option Local Accounts Active Directory Accounts Credential Delegation HTTP Encryption Basic Yes No No No Certificate Yes No No No Kerberos No Yes Yes Yes NTLM Yes Yes No Yes CredSSP Yes Yes Yes Yes So, even though I configured the HTTPS listener, it might be overkill with Kerberos authentication. However, as one can guess, the HTTP protocol itself is plaintext while the body is encrypted. Below is an example of traffic from Ansible play. I just want to point out that in a man-in-the-middle attack scenario, there is more attack surface. With suitable vulnerability in WinRM service or client (pywinrm), HTTPS can provide a needed extra security layer. Allow only required logon methods You should explicitly specify which logon methods are allowed for the Ansible user as additional protection against lateral movement. You can directly deny different logon methods with policies under “Computer Configuration &gt; Windows Settings &gt; Security Settings &gt; Local Policies &gt; User Rights Assignment”. The one method you need to allow for the user is to login through the network. Other requirements may come depending on your use-cases. Prevent lateral movement inside domain network Having the ability to manage AD machines with Ansible has its advantages, but the downside with security is that you have to allow an additional remote access method (WinRM). You also need a user with high-privileges on the managed systems. How high-privileged depends on your use-cases, but usually at least local administrator rights on the managed machines. One mitigation against these threats is network filtering between hosts in the domain network. Usually, this means filtering in host firewalls of member machines. Enabling WinRM creates default firewall rules where access is allowed from private networks and denied from public networks. Meaning that an attacker who has gained an initial foothold on your network and has credentials with permission to use WinRM can move laterally between hosts. You should explicitly set firewall rules that restrict WinRM access only to necessary hosts. If you are only using it for Ansible, then allow access only from the Ansible controller. Protect controller machine The Ansible controller machine can be a very lucrative target for attackers. It usually provides high-privilege access to multiple machines and can contain secrets like user credentials. There’s no official solution of where and how to implement the Ansible controller. It can be a separate server or a system administrator’s laptop, but the machine has to run some UNIX based operating system. Ansible project does not support Windows machines as a controller. I prefer a separate server that can be better isolated and monitored than, for example, sysadmin laptops. One solution is to have a separate network segment for the controller where all traffic would go through a firewall. In the use-case of this post, an example architecture could like one in the below picture. For secret-management, Ansible provides a solution called Ansible vault. It allows you to encrypt files and in-line strings. This way, there’s no need to store secrets in plaintext. Tier model for priviliged access When planning the access for Ansible in your domain environment, you should plan the privilege model in the same way you would do with a human administrator. I have only shown examples with one controller machine and one user account to run Ansible on member machines. However, it may not be the best option if you want to manage the whole Active Directory environment with Ansible. If you only want to manage, for example, a few servers with similar security requirements, then it does make sense to have one account for this, which is only allowed to access those specific servers. When you want to manage machines with different security-levels, like DCs and member servers, you should have separate user accounts for each security level. A minimal separation would be something like in the below picture. So, technically this is the same solution that Microsoft recommends for Active Directory administration in general. Check these documents for more information: https://docs.microsoft.com/en-us/microsoft-identity-manager/pam/tier-model-for-partitioning-administrative-privileges https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/protecting-domain-administrative-credentials/ba-p/259210" />
+<meta property="og:description" content="This post shows how to configure a domain-joined Windows machine to be managed with Ansible. Ansible uses Windows Remote Management (WinRM) service to communicate with Windows machines. I Will use a domain with one member machine to deploy the WinRM service with a GPO and then configure the Ansible controller to use Kerberos authentication. I have also included some testing steps before the final Kerberos and WinRM over HTTPS configuration, so it’s easier to spot what’s wrong in case of an issue. Deploy WinRM service with GPO Create a new GPO or edit existing one depending on your GPO strategy. Open the GPO and go to Computer Configuration &gt; Policies &gt; Administrative Templates &gt; Windows Components &gt; Windows Remote Management (WinRM) &gt; WinRM Service Open the setting Allow remote server management through WinRM Set setting to enabled and set IPv(4 6) filtering TBD I will also set Allow basic authentication and Allow unencrypted traffic to enabled for the first tests . Note that these are not needed if you only want to user Kerberos authentication with Ansible and/or do not want to test the configuration without HTTPS. Go to Go to Computer Configuration &gt; Preferences &gt; Control Panel Settings Right click the service and select New &gt; Service Select ... next to the Service name and select the WinRM service Set the Startup to Automatic (Delayed Start) and Service action to Start service and click OK Save the GPO, go to a machine that gets settings from it, and run gpudate /force command. Run the Test-WSMan cmdlet in Powershell to verify that WinRM service is running. Testing the WinRM connection with Powershell From a machine in your domain run Enter-PSSession &lt;machine with WIRM running&gt;. I f you need to specify credentials for the connection then you can use something like this: $creds = Get-Credential Enter-pssession &lt;your machine&gt; –credential $creds Note that you will need to allow input traffic to ports 5985/TCP (HTTP) and 5986/TCP (HTTPS). You can later deny HTTP access when HTTPS is configured. First Ansible test Now you need to have a Linux machine with Ansible installed. I have a Debian machine where I install Ansible using Pip3. Install ansible using pip3 and run it inside a virtual environment: sudo apt install python3-venv python3-pip python3 -m venv ansible source ansible/bin/activate pip3 install ansible &quot;pywinrm&gt;=0.3.0&quot; # Check ansible documentation for the recommended pywinrm version: # https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html Create a project structure: mkdir -p win-test/inventory &amp;&amp; touch win-test/inventory/hosts Add the below content to the hosts file and change your Windows host’s IP, credentials and also inventory names if you want. [win] win101 ansible_host=&lt;ip or dns name here&gt; [win:vars] ansible_user=&#39;&lt;username&gt;&#39; ansible_password=&#39;&lt;password here - hint, use ansible vault&gt;&#39; ansible_connection=winrm ansible_winrm_transport=basic ansible_port=5985 # http - defaults to https 5986 Try the connection with ansible -i inventory/hosts -m win_ping win101. You should get response like this: win101 | SUCCESS =&gt; { &quot;changed&quot;: false, &quot;ping&quot;: &quot;pong&quot; } If you get some errors like &quot;basic: the specified credentials were rejected by the server then check your WinRM configuration on the windows host using winrm get winrm/config command and verify that all settings are applied in the way they were specified with the GPO. Note that each setting specified with a GPO should have statement [Source=&quot;GPO&quot;]. Certificate enrollment I’m using Windows Certificate Authority to auto-enroll a Computer certificate for the member machine. I’m not going through the CA deployment, but I have not done any special configurations for this. The next steps assume that the CA service is available. Create a new GPO or edit existing one depending on your GPO strategy. Navigate to Computer Configuration &gt; Policies &gt; Windows Settings &gt; Security Settings &gt; Public Key Policies Open Certificate Services Client – Auto-Enrollment and set the setting to Enabled and check the first two settings Click OK and right click Automatic Certificate Request Settings &gt; New &gt; Automatic Certificate Request ... Certificate template: Computer (or if you have another template then use that here) Open Automatic Certificate Request Settings and ensure that you can see your template there. Ensure that the GPO is linked to a correct OU and go to your member machine and run gpudate /force Go to your Certificate Authority and ensure that you can see the issued certificate In your member machine, create a WinRM HTTPS listener using the command winrm quickconfig -transport:https and verify listeners using winrm enumerate winrm/config/listener Ansible test with HTTPS Export your CAs root certificate. In the CA server you can run the command certutil -ca.cert win_ca.crt to export the certificate. In ansible controller, create a directory files on the same directory level with the inventory and copy the certificate to there. Add ansible_winrm_ca_trust_path=files/win_ca.crt to the hosts. Ensure that ansible_host variable is now using domain name that matches with the subject of your member machine’s certificate and remember that your controller machine needs to be able to resolve the domain name. Update ansible_port to 5986 in inventory/hosts and run ansible -i inventory/hosts -m win_ping win101. The expected result is the same as with HTTP connection. It is possible to bypass certificate checks with the setting ansible_winrm_server_cert_validation=ignore. Do not use this setting in the production, but in case you have troubles to make the setup work, then this may be a valid test for troubleshooting. The hosts file should now look something like this: [win] win101 ansible_host=&lt;host&gt;.&lt;domain&gt; [win:vars] ansible_user=&#39;&lt;user&gt;&#39; ansible_password=&#39;&lt;password&gt;&#39; ansible_connection=winrm ansible_winrm_transport=basic ansible_port=5986 # https ansible_winrm_ca_trust_path=files/win_ca.crt Now you can try the ansible -i inventory/hosts -m win_ping win101 command again. You can also try some arbitrary command with win_shell module. For example: ansible -i inventory/hosts -m win_shell -a &quot;whoami&quot; win101. I’m not including any playbook examples as there really isn’t anything Windows specific with those except that Ansible’s Windows modules are mostly used. You can found list of Windows modules here: https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html Kerberos authentication with ansible I will create a domain user “ansible” and add that user to member machine’s local administrators group using GPO. Then I will configure Kerberos authentication for that user. Create a new domain user “ansible” Create a new GPO or edit existing one depending on your GPO strategy Open Computer Configuration &gt; Preferences &gt; Control Panel Settings &gt; Local Users and Groups Right click , select New &gt; Local Group and Update the Administrators (built-in) group to include the ansible user. Press OK to save the settings Install Kerberos dependencies on the ansible controller sudo apt-get install python3-dev libkrb5-dev krb5-user pip3 install pywinrm[kerberos] Edit /etc/krb5.conf on the controller machine and configure realm settings to match your domain: [libdefaults] default_realm = TOIMIALUE.LOCAL dns_lookup_realm = true dns_lookup_kdc = true [realms] TOIMIALUE.LOCAL = { kdc = DC1.TOIMIALUE.LOCAL } [domain_realm] .toimialue.local = TOIMIALUE.LOCAL toimialue.local = TOIMIALUE.LOCAL Change your inventory/hosts like this: [win] win101 ansible_host=win101.toimialue.local [win:vars] ansible_user=ansible@TOIMIALUE.LOCAL ansible_password=&#39;&lt;password&gt;&#39; ansible_connection=winrm ansible_winrm_transport=kerberos ansible_port=5986 # https ansible_winrm_ca_trust_path=files/win_ca.crt ansible_winrm_kinit_mode=managed Note that in the ansible_user value the domain needs to be uppercase like in my example. Now you should be able to use Ansible with Kerberos as we have the target architecture up and running. You should now set settings Allow basic authentication and Allow unencrypted traffic to disabled in the GPO where you defined those settings. Additional security considerations There are lots of different configuration options for things like authentication and transport security. I try to gather some additional security tips to this section. In minimum I would recommend to read this document from Microsoft. Protect ansible user with Protected Users group When a user is added to built-in Protected User group the user automatically gets some extra protection. It can be a good idea to add the created “ansible” user to this group. Microsoft’s documentation specify the following protections: When the signed in user is a member of the Protected Users group the following protections are applied: Credential delegation (CredSSP) will not cache the user’s plain text credentials even when the Allow delegating default credentials Group Policy setting is enabled. Beginning with Windows 8.1 and Windows Server 2012 R2, Windows Digest will not cache the user’s plain text credentials even when Windows Digest is enabled. NTLM will not cache the user’s plain text credentials or NT one-way function (NTOWF). Kerberos will no longer create DES or RC4 keys. Also it will not cache the user’s plain text credentials or long-term keys after the initial TGT is acquired. A cached verifier is not created at sign-in or unlock, so offline sign-in is no longer supported. … Accounts that are members of the Protected Users group that authenticate to a Windows Server 2012 R2 domain are unable to: Authenticate with NTLM authentication. Use DES or RC4 encryption types in Kerberos pre-authentication. Be delegated with unconstrained or constrained delegation. Renew the Kerberos TGTs beyond the initial four-hour lifetime. Easy way to test if the group is doing something is to RDP to some member machine using the “ansible” account. You should get this kind of response: The RDP connection is not anymore possible with this user due to the restrictions with CredSSP. Ansible connection still works with Kerberos authentication. However, I have not done excessive testing for Ansible’s different Windows modules while the ansible user is in Protected Users group. Unencrypted does not mean HTTP with WinRM Something that might be a bit confusing is WinRM’s HTTP(s) listeners and Allow unencrypted traffic setting. One could thing that unencrypted means HTTP, but this is not the case. The way I understands this is that the unencrypted communication means an authentication method which does not provide message-level encryption inside the transport layer. You can test this by changing the ansible_port setting to 5985 (HTTP) while having the Allow unencrypted traffic disabled. The connection should still works fine when Kerberos authentication is being used. If you checked this document, that I mentioned before, you have seen the following statement: It is helpful to consider the security of a PowerShell Remoting connection from two perspectives: initial authentication, and ongoing communication. Regardless of the transport protocol used (HTTP or HTTPS), WinRM always encrypts all PowerShell remoting communication after initial authentication. … When connecting over HTTP, message-level encryption is determined by initial authentication protocol used. Basic authentication provide no encryption. NTLM authentication uses an RC4 cipher with a 128-bit key. Kerberos authentication encryption is determined by the etype in the TGS ticket. This is AES-256 on modern systems. CredSSP encryption is uses the TLS cipher suite that was negotiated in the handshake. Ansible’s documentation provides this kind of table regarding this: Option Local Accounts Active Directory Accounts Credential Delegation HTTP Encryption Basic Yes No No No Certificate Yes No No No Kerberos No Yes Yes Yes NTLM Yes Yes No Yes CredSSP Yes Yes Yes Yes So, even though I configured the HTTPS listener, it might be overkill with Kerberos authentication. However, as one can guess, the HTTP protocol itself is plaintext while the body is encrypted. Below is an example of traffic from Ansible play. I just want to point out that in a man-in-the-middle attack scenario, there is more attack surface. With suitable vulnerability in WinRM service or client (pywinrm), HTTPS can provide a needed extra security layer. Allow only required logon methods You should explicitly specify which logon methods are allowed for the Ansible user as additional protection against lateral movement. You can directly deny different logon methods with policies under “Computer Configuration &gt; Windows Settings &gt; Security Settings &gt; Local Policies &gt; User Rights Assignment”. The one method you need to allow for the user is to login through the network. Other requirements may come depending on your use-cases. Prevent lateral movement inside domain network Having the ability to manage AD machines with Ansible has its advantages, but the downside with security is that you have to allow an additional remote access method (WinRM). You also need a user with high-privileges on the managed systems. How high-privileged depends on your use-cases, but usually at least local administrator rights on the managed machines. One mitigation against these threats is network filtering between hosts in the domain network. Usually, this means filtering in host firewalls of member machines. Enabling WinRM creates default firewall rules where access is allowed from private networks and denied from public networks. Meaning that an attacker who has gained an initial foothold on your network and has credentials with permission to use WinRM can move laterally between hosts. You should explicitly set firewall rules that restrict WinRM access only to necessary hosts. If you are only using it for Ansible, then allow access only from the Ansible controller. Protect controller machine The Ansible controller machine can be a very lucrative target for attackers. It usually provides high-privilege access to multiple machines and can contain secrets like user credentials. There’s no official solution of where and how to implement the Ansible controller. It can be a separate server or a system administrator’s laptop, but the machine has to run some UNIX based operating system. Ansible project does not support Windows machines as a controller. I prefer a separate server that can be better isolated and monitored than, for example, sysadmin laptops. One solution is to have a separate network segment for the controller where all traffic would go through a firewall. In the use-case of this post, an example architecture could like one in the below picture. For secret-management, Ansible provides a solution called Ansible vault. It allows you to encrypt files and in-line strings. This way, there’s no need to store secrets in plaintext. Tier model for priviliged access When planning the access for Ansible in your domain environment, you should plan the privilege model in the same way you would do with a human administrator. I have only shown examples with one controller machine and one user account to run Ansible on member machines. However, it may not be the best option if you want to manage the whole Active Directory environment with Ansible. If you only want to manage, for example, a few servers with similar security requirements, then it does make sense to have one account for this, which is only allowed to access those specific servers. When you want to manage machines with different security-levels, like DCs and member servers, you should have separate user accounts for each security level. A minimal separation would be something like in the below picture. So, technically this is the same solution that Microsoft recommends for Active Directory administration in general. Check these documents for more information: https://docs.microsoft.com/en-us/microsoft-identity-manager/pam/tier-model-for-partitioning-administrative-privileges https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/protecting-domain-administrative-credentials/ba-p/259210" />
+<link rel="canonical" href="http://localhost:4000/2021/01/12/manage-windows-hosts-with-ansible.html" />
+<meta property="og:url" content="http://localhost:4000/2021/01/12/manage-windows-hosts-with-ansible.html" />
+<meta property="og:site_name" content="Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-01-12T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Manage domain-joined Windows machines with Ansible" />
+<script type="application/ld+json">
+{"@type":"BlogPosting","headline":"Manage domain-joined Windows machines with Ansible","dateModified":"2021-01-12T00:00:00+02:00","datePublished":"2021-01-12T00:00:00+02:00","url":"http://localhost:4000/2021/01/12/manage-windows-hosts-with-ansible.html","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2021/01/12/manage-windows-hosts-with-ansible.html"},"author":{"@type":"Person","name":"mtask"},"description":"This post shows how to configure a domain-joined Windows machine to be managed with Ansible. Ansible uses Windows Remote Management (WinRM) service to communicate with Windows machines. I Will use a domain with one member machine to deploy the WinRM service with a GPO and then configure the Ansible controller to use Kerberos authentication. I have also included some testing steps before the final Kerberos and WinRM over HTTPS configuration, so it’s easier to spot what’s wrong in case of an issue. Deploy WinRM service with GPO Create a new GPO or edit existing one depending on your GPO strategy. Open the GPO and go to Computer Configuration &gt; Policies &gt; Administrative Templates &gt; Windows Components &gt; Windows Remote Management (WinRM) &gt; WinRM Service Open the setting Allow remote server management through WinRM Set setting to enabled and set IPv(4 6) filtering TBD I will also set Allow basic authentication and Allow unencrypted traffic to enabled for the first tests . Note that these are not needed if you only want to user Kerberos authentication with Ansible and/or do not want to test the configuration without HTTPS. Go to Go to Computer Configuration &gt; Preferences &gt; Control Panel Settings Right click the service and select New &gt; Service Select ... next to the Service name and select the WinRM service Set the Startup to Automatic (Delayed Start) and Service action to Start service and click OK Save the GPO, go to a machine that gets settings from it, and run gpudate /force command. Run the Test-WSMan cmdlet in Powershell to verify that WinRM service is running. Testing the WinRM connection with Powershell From a machine in your domain run Enter-PSSession &lt;machine with WIRM running&gt;. I f you need to specify credentials for the connection then you can use something like this: $creds = Get-Credential Enter-pssession &lt;your machine&gt; –credential $creds Note that you will need to allow input traffic to ports 5985/TCP (HTTP) and 5986/TCP (HTTPS). You can later deny HTTP access when HTTPS is configured. First Ansible test Now you need to have a Linux machine with Ansible installed. I have a Debian machine where I install Ansible using Pip3. Install ansible using pip3 and run it inside a virtual environment: sudo apt install python3-venv python3-pip python3 -m venv ansible source ansible/bin/activate pip3 install ansible &quot;pywinrm&gt;=0.3.0&quot; # Check ansible documentation for the recommended pywinrm version: # https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html Create a project structure: mkdir -p win-test/inventory &amp;&amp; touch win-test/inventory/hosts Add the below content to the hosts file and change your Windows host’s IP, credentials and also inventory names if you want. [win] win101 ansible_host=&lt;ip or dns name here&gt; [win:vars] ansible_user=&#39;&lt;username&gt;&#39; ansible_password=&#39;&lt;password here - hint, use ansible vault&gt;&#39; ansible_connection=winrm ansible_winrm_transport=basic ansible_port=5985 # http - defaults to https 5986 Try the connection with ansible -i inventory/hosts -m win_ping win101. You should get response like this: win101 | SUCCESS =&gt; { &quot;changed&quot;: false, &quot;ping&quot;: &quot;pong&quot; } If you get some errors like &quot;basic: the specified credentials were rejected by the server then check your WinRM configuration on the windows host using winrm get winrm/config command and verify that all settings are applied in the way they were specified with the GPO. Note that each setting specified with a GPO should have statement [Source=&quot;GPO&quot;]. Certificate enrollment I’m using Windows Certificate Authority to auto-enroll a Computer certificate for the member machine. I’m not going through the CA deployment, but I have not done any special configurations for this. The next steps assume that the CA service is available. Create a new GPO or edit existing one depending on your GPO strategy. Navigate to Computer Configuration &gt; Policies &gt; Windows Settings &gt; Security Settings &gt; Public Key Policies Open Certificate Services Client – Auto-Enrollment and set the setting to Enabled and check the first two settings Click OK and right click Automatic Certificate Request Settings &gt; New &gt; Automatic Certificate Request ... Certificate template: Computer (or if you have another template then use that here) Open Automatic Certificate Request Settings and ensure that you can see your template there. Ensure that the GPO is linked to a correct OU and go to your member machine and run gpudate /force Go to your Certificate Authority and ensure that you can see the issued certificate In your member machine, create a WinRM HTTPS listener using the command winrm quickconfig -transport:https and verify listeners using winrm enumerate winrm/config/listener Ansible test with HTTPS Export your CAs root certificate. In the CA server you can run the command certutil -ca.cert win_ca.crt to export the certificate. In ansible controller, create a directory files on the same directory level with the inventory and copy the certificate to there. Add ansible_winrm_ca_trust_path=files/win_ca.crt to the hosts. Ensure that ansible_host variable is now using domain name that matches with the subject of your member machine’s certificate and remember that your controller machine needs to be able to resolve the domain name. Update ansible_port to 5986 in inventory/hosts and run ansible -i inventory/hosts -m win_ping win101. The expected result is the same as with HTTP connection. It is possible to bypass certificate checks with the setting ansible_winrm_server_cert_validation=ignore. Do not use this setting in the production, but in case you have troubles to make the setup work, then this may be a valid test for troubleshooting. The hosts file should now look something like this: [win] win101 ansible_host=&lt;host&gt;.&lt;domain&gt; [win:vars] ansible_user=&#39;&lt;user&gt;&#39; ansible_password=&#39;&lt;password&gt;&#39; ansible_connection=winrm ansible_winrm_transport=basic ansible_port=5986 # https ansible_winrm_ca_trust_path=files/win_ca.crt Now you can try the ansible -i inventory/hosts -m win_ping win101 command again. You can also try some arbitrary command with win_shell module. For example: ansible -i inventory/hosts -m win_shell -a &quot;whoami&quot; win101. I’m not including any playbook examples as there really isn’t anything Windows specific with those except that Ansible’s Windows modules are mostly used. You can found list of Windows modules here: https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html Kerberos authentication with ansible I will create a domain user “ansible” and add that user to member machine’s local administrators group using GPO. Then I will configure Kerberos authentication for that user. Create a new domain user “ansible” Create a new GPO or edit existing one depending on your GPO strategy Open Computer Configuration &gt; Preferences &gt; Control Panel Settings &gt; Local Users and Groups Right click , select New &gt; Local Group and Update the Administrators (built-in) group to include the ansible user. Press OK to save the settings Install Kerberos dependencies on the ansible controller sudo apt-get install python3-dev libkrb5-dev krb5-user pip3 install pywinrm[kerberos] Edit /etc/krb5.conf on the controller machine and configure realm settings to match your domain: [libdefaults] default_realm = TOIMIALUE.LOCAL dns_lookup_realm = true dns_lookup_kdc = true [realms] TOIMIALUE.LOCAL = { kdc = DC1.TOIMIALUE.LOCAL } [domain_realm] .toimialue.local = TOIMIALUE.LOCAL toimialue.local = TOIMIALUE.LOCAL Change your inventory/hosts like this: [win] win101 ansible_host=win101.toimialue.local [win:vars] ansible_user=ansible@TOIMIALUE.LOCAL ansible_password=&#39;&lt;password&gt;&#39; ansible_connection=winrm ansible_winrm_transport=kerberos ansible_port=5986 # https ansible_winrm_ca_trust_path=files/win_ca.crt ansible_winrm_kinit_mode=managed Note that in the ansible_user value the domain needs to be uppercase like in my example. Now you should be able to use Ansible with Kerberos as we have the target architecture up and running. You should now set settings Allow basic authentication and Allow unencrypted traffic to disabled in the GPO where you defined those settings. Additional security considerations There are lots of different configuration options for things like authentication and transport security. I try to gather some additional security tips to this section. In minimum I would recommend to read this document from Microsoft. Protect ansible user with Protected Users group When a user is added to built-in Protected User group the user automatically gets some extra protection. It can be a good idea to add the created “ansible” user to this group. Microsoft’s documentation specify the following protections: When the signed in user is a member of the Protected Users group the following protections are applied: Credential delegation (CredSSP) will not cache the user’s plain text credentials even when the Allow delegating default credentials Group Policy setting is enabled. Beginning with Windows 8.1 and Windows Server 2012 R2, Windows Digest will not cache the user’s plain text credentials even when Windows Digest is enabled. NTLM will not cache the user’s plain text credentials or NT one-way function (NTOWF). Kerberos will no longer create DES or RC4 keys. Also it will not cache the user’s plain text credentials or long-term keys after the initial TGT is acquired. A cached verifier is not created at sign-in or unlock, so offline sign-in is no longer supported. … Accounts that are members of the Protected Users group that authenticate to a Windows Server 2012 R2 domain are unable to: Authenticate with NTLM authentication. Use DES or RC4 encryption types in Kerberos pre-authentication. Be delegated with unconstrained or constrained delegation. Renew the Kerberos TGTs beyond the initial four-hour lifetime. Easy way to test if the group is doing something is to RDP to some member machine using the “ansible” account. You should get this kind of response: The RDP connection is not anymore possible with this user due to the restrictions with CredSSP. Ansible connection still works with Kerberos authentication. However, I have not done excessive testing for Ansible’s different Windows modules while the ansible user is in Protected Users group. Unencrypted does not mean HTTP with WinRM Something that might be a bit confusing is WinRM’s HTTP(s) listeners and Allow unencrypted traffic setting. One could thing that unencrypted means HTTP, but this is not the case. The way I understands this is that the unencrypted communication means an authentication method which does not provide message-level encryption inside the transport layer. You can test this by changing the ansible_port setting to 5985 (HTTP) while having the Allow unencrypted traffic disabled. The connection should still works fine when Kerberos authentication is being used. If you checked this document, that I mentioned before, you have seen the following statement: It is helpful to consider the security of a PowerShell Remoting connection from two perspectives: initial authentication, and ongoing communication. Regardless of the transport protocol used (HTTP or HTTPS), WinRM always encrypts all PowerShell remoting communication after initial authentication. … When connecting over HTTP, message-level encryption is determined by initial authentication protocol used. Basic authentication provide no encryption. NTLM authentication uses an RC4 cipher with a 128-bit key. Kerberos authentication encryption is determined by the etype in the TGS ticket. This is AES-256 on modern systems. CredSSP encryption is uses the TLS cipher suite that was negotiated in the handshake. Ansible’s documentation provides this kind of table regarding this: Option Local Accounts Active Directory Accounts Credential Delegation HTTP Encryption Basic Yes No No No Certificate Yes No No No Kerberos No Yes Yes Yes NTLM Yes Yes No Yes CredSSP Yes Yes Yes Yes So, even though I configured the HTTPS listener, it might be overkill with Kerberos authentication. However, as one can guess, the HTTP protocol itself is plaintext while the body is encrypted. Below is an example of traffic from Ansible play. I just want to point out that in a man-in-the-middle attack scenario, there is more attack surface. With suitable vulnerability in WinRM service or client (pywinrm), HTTPS can provide a needed extra security layer. Allow only required logon methods You should explicitly specify which logon methods are allowed for the Ansible user as additional protection against lateral movement. You can directly deny different logon methods with policies under “Computer Configuration &gt; Windows Settings &gt; Security Settings &gt; Local Policies &gt; User Rights Assignment”. The one method you need to allow for the user is to login through the network. Other requirements may come depending on your use-cases. Prevent lateral movement inside domain network Having the ability to manage AD machines with Ansible has its advantages, but the downside with security is that you have to allow an additional remote access method (WinRM). You also need a user with high-privileges on the managed systems. How high-privileged depends on your use-cases, but usually at least local administrator rights on the managed machines. One mitigation against these threats is network filtering between hosts in the domain network. Usually, this means filtering in host firewalls of member machines. Enabling WinRM creates default firewall rules where access is allowed from private networks and denied from public networks. Meaning that an attacker who has gained an initial foothold on your network and has credentials with permission to use WinRM can move laterally between hosts. You should explicitly set firewall rules that restrict WinRM access only to necessary hosts. If you are only using it for Ansible, then allow access only from the Ansible controller. Protect controller machine The Ansible controller machine can be a very lucrative target for attackers. It usually provides high-privilege access to multiple machines and can contain secrets like user credentials. There’s no official solution of where and how to implement the Ansible controller. It can be a separate server or a system administrator’s laptop, but the machine has to run some UNIX based operating system. Ansible project does not support Windows machines as a controller. I prefer a separate server that can be better isolated and monitored than, for example, sysadmin laptops. One solution is to have a separate network segment for the controller where all traffic would go through a firewall. In the use-case of this post, an example architecture could like one in the below picture. For secret-management, Ansible provides a solution called Ansible vault. It allows you to encrypt files and in-line strings. This way, there’s no need to store secrets in plaintext. Tier model for priviliged access When planning the access for Ansible in your domain environment, you should plan the privilege model in the same way you would do with a human administrator. I have only shown examples with one controller machine and one user account to run Ansible on member machines. However, it may not be the best option if you want to manage the whole Active Directory environment with Ansible. If you only want to manage, for example, a few servers with similar security requirements, then it does make sense to have one account for this, which is only allowed to access those specific servers. When you want to manage machines with different security-levels, like DCs and member servers, you should have separate user accounts for each security level. A minimal separation would be something like in the below picture. So, technically this is the same solution that Microsoft recommends for Active Directory administration in general. Check these documents for more information: https://docs.microsoft.com/en-us/microsoft-identity-manager/pam/tier-model-for-partitioning-administrative-privileges https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/protecting-domain-administrative-credentials/ba-p/259210","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Blog" />
+</head>
+<body><header class="site-header">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/">/posts</a><a class="page-link" href="/whoami/">/whoami</a><a class="page-link" href="/categories/">/categories</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Manage domain-joined Windows machines with Ansible</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-01-12T00:00:00+02:00" itemprop="datePublished">Jan 12, 2021
+      </time></p>
+   </header>
+  <div class="post-categories">
+    
+    [
+    <a href="/categories/#Windows">Windows</a>
+    &nbsp;
+    
+    <a href="/categories/#Security">Security</a>
+    &nbsp;
+    
+    <a href="/categories/#Ansible">Ansible</a>
+    
+    ]
+  </div>
+  <div id="toc"></div>
+  <div class="post-content e-content" itemprop="articleBody">
+    
+<p>This post shows how to configure a domain-joined Windows machine to be managed with Ansible.</p>
+
+<p>Ansible uses Windows Remote Management (WinRM) service to communicate with Windows machines. I Will use a domain with one member machine to deploy the WinRM service with a GPO and then configure the Ansible controller to use Kerberos authentication.</p>
+
+<p><img src="/assets/image-20210112150034053.png" alt="image-20210112150034053" /></p>
+
+<p>I have also included some testing steps before the final Kerberos and WinRM over HTTPS configuration, so it’s easier to spot what’s wrong in case of an issue.</p>
+
+<h2 id="deploy-winrm-service-with-gpo">Deploy WinRM service with GPO</h2>
+
+<ol>
+  <li>
+    <p>Create a new GPO or edit existing one depending on your GPO strategy.</p>
+  </li>
+  <li>
+    <p>Open the GPO and go to <code class="language-plaintext highlighter-rouge">Computer Configuration &gt; Policies &gt; Administrative Templates &gt; Windows Components &gt; Windows Remote Management (WinRM) &gt; WinRM Service</code></p>
+  </li>
+  <li>
+    <p>Open the setting <code class="language-plaintext highlighter-rouge">Allow remote server management through WinRM</code></p>
+  </li>
+  <li>
+    <table>
+      <tbody>
+        <tr>
+          <td>Set setting to enabled and set IPv(4</td>
+          <td>6) filtering TBD</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><img src="/assets/image-20210112101632279.png" alt="image-20210112101632279" /></p>
+
+    <ul>
+      <li>I will also set <code class="language-plaintext highlighter-rouge">Allow basic authentication</code> and <code class="language-plaintext highlighter-rouge">Allow unencrypted traffic</code> to <code class="language-plaintext highlighter-rouge">enabled</code> for the first tests . Note that these are not needed if you only want to user Kerberos authentication with Ansible and/or do not want to test the configuration without HTTPS.</li>
+    </ul>
+  </li>
+  <li>
+    <p>Go to <code class="language-plaintext highlighter-rouge">Go to Computer Configuration &gt; Preferences &gt; Control Panel Settings</code></p>
+  </li>
+  <li>
+    <p>Right click the <code class="language-plaintext highlighter-rouge">service</code> and select <code class="language-plaintext highlighter-rouge">New &gt; Service </code></p>
+  </li>
+  <li>
+    <p>Select <code class="language-plaintext highlighter-rouge">...</code> next to the <code class="language-plaintext highlighter-rouge">Service name</code> and select the <code class="language-plaintext highlighter-rouge">WinRM </code> service</p>
+
+    <p><img src="/assets/image-20210112120516929.png" alt="image-20210112120516929" /></p>
+  </li>
+  <li>
+    <p>Set the <code class="language-plaintext highlighter-rouge">Startup</code> to <code class="language-plaintext highlighter-rouge">Automatic (Delayed Start)</code>  and <code class="language-plaintext highlighter-rouge">Service action</code> to <code class="language-plaintext highlighter-rouge">Start service</code> and click <code class="language-plaintext highlighter-rouge">OK</code></p>
+
+    <p><img src="/assets/image-20210112120722920.png" alt="image-20210112120722920" /></p>
+  </li>
+  <li>
+    <p>Save the GPO, go to a machine that gets settings from it, and run <code class="language-plaintext highlighter-rouge">gpudate /force</code> command.</p>
+  </li>
+  <li>Run the <code class="language-plaintext highlighter-rouge">Test-WSMan</code> cmdlet in Powershell to verify that WinRM  service is running.</li>
+</ol>
+
+<h2 id="testing-the-winrm--connection-with-powershell">Testing the WinRM  connection with Powershell</h2>
+
+<p>From a machine in your domain run <code class="language-plaintext highlighter-rouge">Enter-PSSession &lt;machine with WIRM running&gt;</code>. I f you need to specify credentials for the connection then you can use something like this:</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$creds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Get-Credential</span><span class="w">
+</span><span class="nx">Enter-pssession</span><span class="w"> </span><span class="err">&lt;</span><span class="nx">your</span><span class="w"> </span><span class="nx">machine</span><span class="err">&gt;</span><span class="w"> </span><span class="err">–</span><span class="nx">credential</span><span class="w"> </span><span class="nv">$creds</span><span class="w">
+</span></code></pre></div></div>
+
+<p><img src="/assets/image-20210112122739023.png" alt="image-20210112122739023" /></p>
+
+<p><img src="/assets/image-20210112122847949.png" alt="image-20210112122847949" /></p>
+
+<p>Note that you will need to allow input traffic to ports 5985/TCP (HTTP) and 5986/TCP (HTTPS). You can later deny HTTP access when HTTPS is configured.</p>
+
+<h2 id="first-ansible-test">First Ansible test</h2>
+
+<p>Now you need to have a Linux machine with Ansible installed. I have a Debian machine where I install Ansible using Pip3.</p>
+
+<ol>
+  <li>Install ansible using pip3 and run it inside a virtual environment:</li>
+</ol>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sudo apt install python3-venv python3-pip
+python3 -m venv ansible
+source ansible/bin/activate
+pip3 install ansible "pywinrm&gt;=0.3.0"
+# Check ansible documentation for the recommended pywinrm version:
+# https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html
+</code></pre></div></div>
+
+<ol>
+  <li>
+    <p>Create a project structure: <code class="language-plaintext highlighter-rouge">mkdir -p win-test/inventory &amp;&amp; touch win-test/inventory/hosts</code></p>
+  </li>
+  <li>
+    <p>Add the below content to the <code class="language-plaintext highlighter-rouge">hosts</code> file and change your Windows host’s IP, credentials and also inventory names if you want.</p>
+  </li>
+</ol>
+
+<div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[win]</span>
+<span class="err">win101</span> <span class="py">ansible_host</span><span class="p">=</span><span class="s">&lt;ip or dns name here&gt;</span>
+
+<span class="nn">[win:vars]</span>
+<span class="py">ansible_user</span><span class="p">=</span><span class="s">'&lt;username&gt;'</span>
+<span class="py">ansible_password</span><span class="p">=</span><span class="s">'&lt;password here - hint, use ansible vault&gt;'</span>
+<span class="py">ansible_connection</span><span class="p">=</span><span class="s">winrm</span>
+<span class="py">ansible_winrm_transport</span><span class="p">=</span><span class="s">basic</span>
+<span class="py">ansible_port</span><span class="p">=</span><span class="s">5985 # http - defaults to https 5986</span>
+</code></pre></div></div>
+
+<ol>
+  <li>
+    <p>Try the connection with <code class="language-plaintext highlighter-rouge">ansible -i inventory/hosts -m win_ping win101</code>. You should get response like this:</p>
+
+    <div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="err">win</span><span class="mi">101</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="err">SUCCESS</span><span class="w"> </span><span class="err">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"changed"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"ping"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pong"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>If you get some errors like <code class="language-plaintext highlighter-rouge">"basic: the specified credentials were rejected by the server</code> then check your WinRM  configuration on the windows host using <code class="language-plaintext highlighter-rouge">winrm get winrm/config</code> command and verify that all settings are applied in the way they were specified with the GPO. Note that each setting specified with a GPO should have statement <code class="language-plaintext highlighter-rouge">[Source="GPO"]</code>.</p>
+
+<h2 id="certificate-enrollment">Certificate enrollment</h2>
+
+<p>I’m using Windows Certificate Authority to auto-enroll a Computer certificate for the member machine. I’m not going through the CA deployment, but I have not done any special configurations for this.</p>
+
+<p>The next steps assume that the CA service is available.</p>
+
+<ol>
+  <li>
+    <p>Create a new GPO or edit existing one depending on your GPO strategy.</p>
+  </li>
+  <li>
+    <p>Navigate to <code class="language-plaintext highlighter-rouge">Computer Configuration &gt; Policies &gt; Windows Settings &gt; Security Settings &gt; Public Key Policies</code></p>
+  </li>
+  <li>
+    <p>Open <code class="language-plaintext highlighter-rouge">Certificate Services Client – Auto-Enrollment</code> and set the setting to <code class="language-plaintext highlighter-rouge">Enabled</code> and check the first two settings</p>
+
+    <p><img src="/assets/image-20210112143306258.png" alt="image-20210112143306258" /></p>
+  </li>
+  <li>
+    <p>Click <code class="language-plaintext highlighter-rouge">OK</code> and right click <code class="language-plaintext highlighter-rouge">Automatic Certificate Request Settings &gt; New &gt; Automatic Certificate Request ...</code></p>
+
+    <ul>
+      <li>
+        <p>Certificate template:  <code class="language-plaintext highlighter-rouge">Computer</code> (or if you have another template then use that here)</p>
+      </li>
+      <li>
+        <p>Open <code class="language-plaintext highlighter-rouge">Automatic Certificate Request Settings</code> and ensure that you can see your template there.</p>
+
+        <p><img src="/assets/image-20210112143704676.png" alt="image-20210112143704676" /></p>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <p>Ensure that the GPO is linked to a correct OU and go to your member machine and run <code class="language-plaintext highlighter-rouge">gpudate /force</code></p>
+  </li>
+  <li>
+    <p>Go to your Certificate Authority and ensure that you can see the issued certificate</p>
+
+    <p><img src="/assets/image-20210112144348158.png" alt="image-20210112144348158" /></p>
+  </li>
+  <li>
+    <p>In your member machine, create a WinRM HTTPS listener using the command <code class="language-plaintext highlighter-rouge">winrm quickconfig -transport:https</code> and verify listeners using <code class="language-plaintext highlighter-rouge">winrm enumerate winrm/config/listener</code></p>
+  </li>
+</ol>
+
+<h2 id="ansible-test-with-https">Ansible test with HTTPS</h2>
+
+<ol>
+  <li>Export your CAs root certificate.
+    <ul>
+      <li>In the CA server you can run the command <code class="language-plaintext highlighter-rouge">certutil -ca.cert win_ca.crt</code> to export the certificate.</li>
+    </ul>
+  </li>
+  <li>In ansible controller, create a directory <code class="language-plaintext highlighter-rouge">files</code> on the same directory level with the inventory and copy the certificate to there.</li>
+  <li>Add <code class="language-plaintext highlighter-rouge">ansible_winrm_ca_trust_path=files/win_ca.crt</code> to the <code class="language-plaintext highlighter-rouge">hosts</code>.</li>
+  <li>Ensure that <code class="language-plaintext highlighter-rouge">ansible_host</code> variable is now using domain name that matches with the subject of your member machine’s certificate and remember that your controller machine needs to be able to resolve the domain name.</li>
+  <li>Update <code class="language-plaintext highlighter-rouge">ansible_port</code> to <code class="language-plaintext highlighter-rouge">5986</code> in <code class="language-plaintext highlighter-rouge">inventory/hosts</code> and run <code class="language-plaintext highlighter-rouge">ansible -i inventory/hosts -m win_ping win101</code>. The expected result is the same as with HTTP connection.</li>
+</ol>
+
+<p>It is possible to bypass certificate checks with the setting <code class="language-plaintext highlighter-rouge">ansible_winrm_server_cert_validation=ignore</code>. Do <strong>not</strong> use this setting in the production, but in case you have troubles to make the setup work, then this may be a valid test for troubleshooting.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">hosts</code> file should now look something like this:</p>
+
+<div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[win]</span>
+<span class="err">win101</span> <span class="py">ansible_host</span><span class="p">=</span><span class="s">&lt;host&gt;.&lt;domain&gt;</span>
+
+<span class="nn">[win:vars]</span>
+<span class="py">ansible_user</span><span class="p">=</span><span class="s">'&lt;user&gt;'</span>
+<span class="py">ansible_password</span><span class="p">=</span><span class="s">'&lt;password&gt;'</span>
+<span class="py">ansible_connection</span><span class="p">=</span><span class="s">winrm</span>
+<span class="py">ansible_winrm_transport</span><span class="p">=</span><span class="s">basic</span>
+<span class="py">ansible_port</span><span class="p">=</span><span class="s">5986 # https</span>
+<span class="py">ansible_winrm_ca_trust_path</span><span class="p">=</span><span class="s">files/win_ca.crt</span>
+</code></pre></div></div>
+
+<p>Now you can try the <code class="language-plaintext highlighter-rouge">ansible -i inventory/hosts -m win_ping win101</code> command again. You can also try some arbitrary command with <code class="language-plaintext highlighter-rouge">win_shell</code> module. For example: <code class="language-plaintext highlighter-rouge">ansible -i inventory/hosts -m win_shell -a "whoami" win101</code>.</p>
+
+<p>I’m not including any playbook examples as there really isn’t anything Windows specific with those except that Ansible’s Windows modules are mostly used. You can found list of Windows modules here: <a href="https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html">https://docs.ansible.com/ansible/2.9/modules/list_of_windows_modules.html</a></p>
+
+<h2 id="kerberos-authentication-with-ansible">Kerberos authentication with ansible</h2>
+
+<p>I will create a domain user “ansible” and add that user to member machine’s local administrators group using GPO. Then I will configure Kerberos authentication for that user.</p>
+
+<ol>
+  <li>
+    <p>Create a new domain user “ansible”</p>
+
+    <p><img src="/assets/image-20210112154933885.png" alt="image-20210112154933885" /></p>
+  </li>
+  <li>
+    <p>Create a new GPO or edit existing one depending on your GPO strategy</p>
+  </li>
+  <li>
+    <p>Open <code class="language-plaintext highlighter-rouge">Computer Configuration &gt; Preferences &gt; Control Panel Settings &gt; Local Users and Groups</code></p>
+  </li>
+  <li>
+    <p>Right click , select <code class="language-plaintext highlighter-rouge">New &gt; Local Group</code> and <code class="language-plaintext highlighter-rouge">Update</code> the <code class="language-plaintext highlighter-rouge">Administrators (built-in)</code> group to include the <code class="language-plaintext highlighter-rouge">ansible</code> user.</p>
+
+    <p><img src="/assets/image-20210112155708589.png" alt="image-20210112155708589" /></p>
+  </li>
+  <li>
+    <p>Press <code class="language-plaintext highlighter-rouge">OK</code> to save the settings</p>
+  </li>
+  <li>
+    <p>Install Kerberos dependencies on the ansible controller</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sudo apt-get install python3-dev libkrb5-dev krb5-user
+pip3 install pywinrm[kerberos]
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Edit <code class="language-plaintext highlighter-rouge">/etc/krb5.conf</code> on the controller machine and configure realm settings to match your domain:</p>
+
+    <div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[libdefaults]</span>
+        <span class="py">default_realm</span> <span class="p">=</span> <span class="s">TOIMIALUE.LOCAL</span>
+        <span class="py">dns_lookup_realm</span> <span class="p">=</span> <span class="s">true</span>
+        <span class="py">dns_lookup_kdc</span> <span class="p">=</span> <span class="s">true</span>
+<span class="nn">[realms]</span>
+        <span class="py">TOIMIALUE.LOCAL</span> <span class="p">=</span> <span class="s">{</span>
+                <span class="py">kdc</span> <span class="p">=</span> <span class="s">DC1.TOIMIALUE.LOCAL</span>
+   
+        <span class="err">}</span>
+<span class="nn">[domain_realm]</span>
+        <span class="py">.toimialue.local</span> <span class="p">=</span> <span class="s">TOIMIALUE.LOCAL</span>
+        <span class="py">toimialue.local</span> <span class="p">=</span> <span class="s">TOIMIALUE.LOCAL</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Change your <code class="language-plaintext highlighter-rouge">inventory/hosts</code> like this:</p>
+
+    <div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[win]</span>
+<span class="err">win101</span> <span class="py">ansible_host</span><span class="p">=</span><span class="s">win101.toimialue.local</span>
+   
+<span class="nn">[win:vars]</span>
+<span class="py">ansible_user</span><span class="p">=</span><span class="s">ansible@TOIMIALUE.LOCAL</span>
+<span class="py">ansible_password</span><span class="p">=</span><span class="s">'&lt;password&gt;'</span>
+<span class="py">ansible_connection</span><span class="p">=</span><span class="s">winrm</span>
+<span class="py">ansible_winrm_transport</span><span class="p">=</span><span class="s">kerberos</span>
+<span class="py">ansible_port</span><span class="p">=</span><span class="s">5986 # https</span>
+<span class="py">ansible_winrm_ca_trust_path</span><span class="p">=</span><span class="s">files/win_ca.crt</span>
+<span class="py">ansible_winrm_kinit_mode</span><span class="p">=</span><span class="s">managed</span>
+</code></pre></div>    </div>
+
+    <ul>
+      <li>Note that in the <code class="language-plaintext highlighter-rouge">ansible_user</code> value the domain needs to be uppercase like in my example.</li>
+    </ul>
+  </li>
+</ol>
+
+<p>Now you should be able to use Ansible with Kerberos as we have the target architecture up and running. You should now set settings <code class="language-plaintext highlighter-rouge">Allow basic authentication</code> and <code class="language-plaintext highlighter-rouge">Allow unencrypted traffic</code> to disabled in the GPO where you defined those settings.</p>
+
+<h2 id="additional-security-considerations">Additional security considerations</h2>
+
+<p>There are lots of different configuration options for things like authentication and transport security. I try to gather some additional security tips to this section. In minimum I would recommend to read <a href="https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/winrmsecurity?view=powershell-7.1">this</a> document from Microsoft.</p>
+
+<h3 id="protect-ansible-user-with-protected-users-group">Protect ansible user with Protected Users group</h3>
+
+<p>When a user is added to built-in <code class="language-plaintext highlighter-rouge">Protected User</code> group the user automatically gets some extra protection. It can be a good idea to add the created “ansible” user to this group.</p>
+
+<p><img src="/assets/winrm-ansible-protected-users.png" alt="" /></p>
+
+<p><a href="https://docs.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group">Microsoft’s documentation</a> specify the following protections:</p>
+
+<blockquote>
+  <p>When the signed in user is a member of the Protected Users group the following protections are applied:</p>
+
+  <ul>
+    <li>Credential delegation (CredSSP) will not cache the user’s plain text credentials even when the <strong>Allow delegating default credentials</strong> Group Policy setting is enabled.</li>
+    <li>Beginning with Windows 8.1 and Windows Server 2012 R2, Windows Digest will not cache the user’s plain text credentials even when Windows Digest is enabled.</li>
+    <li>NTLM will not cache the user’s plain text credentials or NT one-way function (NTOWF).</li>
+    <li>Kerberos will no longer create DES or RC4 keys. Also it will not cache the user’s plain text credentials or long-term keys after the initial TGT is acquired.</li>
+    <li>A cached verifier is not created at sign-in or unlock, so offline sign-in is no longer supported.</li>
+  </ul>
+
+  <p>…</p>
+
+  <p>Accounts that are members of the Protected Users group that authenticate to a Windows Server 2012 R2 domain are unable to:</p>
+
+  <ul>
+    <li>Authenticate with NTLM authentication.</li>
+    <li>Use DES or RC4 encryption types in Kerberos pre-authentication.</li>
+    <li>Be delegated with unconstrained or constrained delegation.</li>
+    <li>Renew the Kerberos TGTs beyond the initial four-hour lifetime.</li>
+  </ul>
+</blockquote>
+
+<p>Easy way to test if the group is doing something is to RDP to some member machine using the “ansible” account. You should get this kind of response:</p>
+
+<p><img src="/assets/winrm-ansible-protected-users-rdp.png" alt="" /></p>
+
+<p>The RDP connection is not anymore possible with this user due to the restrictions with CredSSP. Ansible connection still works with Kerberos authentication. However, I have not done excessive testing for Ansible’s different Windows modules while the ansible user is in Protected Users group.</p>
+
+<h3 id="unencrypted-does-not-mean-http-with-winrm">Unencrypted does not mean HTTP with WinRM</h3>
+
+<p>Something that might be a bit confusing is WinRM’s HTTP(s) listeners and <code class="language-plaintext highlighter-rouge">Allow unencrypted traffic</code> setting. One could thing that unencrypted means HTTP, but this is not the case. The way I understands this is that the unencrypted communication means an authentication method which does not provide message-level encryption inside the transport layer.</p>
+
+<p>You can test this by changing the <code class="language-plaintext highlighter-rouge">ansible_port</code> setting to <code class="language-plaintext highlighter-rouge">5985 (HTTP)</code> while having the <code class="language-plaintext highlighter-rouge">Allow unencrypted traffic</code> disabled. The connection should still works fine when Kerberos authentication is being used.</p>
+
+<p>If you checked <a href="https://docs.microsoft.com/en-us/powershell/scripting/learn/remoting/winrmsecurity?view=powershell-7.1">this</a> document, that I mentioned before, you have seen the following statement:</p>
+
+<blockquote>
+  <p>It is helpful to consider the security of a PowerShell Remoting connection from two perspectives: initial authentication, and ongoing communication.</p>
+
+  <p>Regardless of the transport protocol used (HTTP or HTTPS), WinRM always encrypts all PowerShell remoting communication after initial authentication.</p>
+
+  <p>…</p>
+
+  <p>When connecting over HTTP, message-level encryption is determined by initial authentication protocol used.</p>
+
+  <ul>
+    <li>Basic authentication provide no encryption.</li>
+    <li>NTLM authentication uses an RC4 cipher with a 128-bit key.</li>
+    <li>Kerberos authentication encryption is determined by the <code class="language-plaintext highlighter-rouge">etype</code> in the TGS ticket. This is AES-256 on modern systems.</li>
+    <li>CredSSP encryption is uses the TLS cipher suite that was negotiated in the handshake.</li>
+  </ul>
+</blockquote>
+
+<p><a href="https://docs.ansible.com/ansible/latest/user_guide/windows_winrm.html#authentication-options">Ansible’s documentation</a> provides this kind of table regarding this:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Option</th>
+      <th>Local Accounts</th>
+      <th>Active Directory Accounts</th>
+      <th>Credential Delegation</th>
+      <th>HTTP Encryption</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Basic</td>
+      <td>Yes</td>
+      <td>No</td>
+      <td>No</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Certificate</td>
+      <td>Yes</td>
+      <td>No</td>
+      <td>No</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Kerberos</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>NTLM</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>No</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>CredSSP</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>So, even though I configured the HTTPS listener, it might be overkill with Kerberos authentication. However, as one can guess, the HTTP protocol itself is plaintext while the body is encrypted. Below is an example of traffic from Ansible play.</p>
+
+<p><img src="/assets/winrm-ansible-http.png" alt="" /></p>
+
+<p>I just want to point out that in a man-in-the-middle attack scenario, there is more attack surface. With suitable vulnerability in WinRM service or client (pywinrm), HTTPS can provide a needed extra security layer.</p>
+
+<h3 id="allow-only-required-logon-methods">Allow only required logon methods</h3>
+
+<p>You should explicitly specify which logon methods are allowed for the Ansible user as additional protection against lateral movement.</p>
+
+<p>You can directly deny different logon methods with policies under “Computer Configuration &gt; Windows Settings &gt; Security Settings &gt; Local Policies &gt; User Rights Assignment”.</p>
+
+<p><img src="/assets/winrm-ansible-allowed-logons.png" alt="" /></p>
+
+<p>The one method you need to allow for the user is to login through the network. Other requirements may come depending on your use-cases.</p>
+
+<h3 id="prevent-lateral-movement-inside-domain-network">Prevent lateral movement inside domain network</h3>
+
+<p>Having the ability to manage AD machines with Ansible has its advantages, but the downside with security is that you have to allow an additional remote access method (WinRM).</p>
+
+<p>You also need a user with high-privileges on the managed systems. How high-privileged depends on your use-cases, but usually at least local administrator rights on the managed machines.</p>
+
+<p>One mitigation against these threats is network filtering between hosts in the domain network. Usually, this means filtering in host firewalls of member machines.</p>
+
+<p>Enabling WinRM creates default firewall rules where access is allowed from private networks and denied from public networks. Meaning that an attacker who has gained an initial foothold on your network and has credentials with permission to use WinRM can move laterally between hosts.</p>
+
+<p>You should explicitly set firewall rules that restrict WinRM access only to necessary hosts. If you are only using it for Ansible, then allow access only from the Ansible controller.</p>
+
+<p><img src="/assets/winrm-ansible-firewall.png" alt="" /></p>
+
+<h3 id="protect-controller-machine">Protect controller machine</h3>
+
+<p>The Ansible controller machine can be a very lucrative target for attackers. It usually provides high-privilege access to multiple machines and can contain secrets like user credentials.</p>
+
+<p>There’s no official solution of where and how to implement the Ansible controller. It can be a separate server or a system administrator’s laptop, but the machine has to run some UNIX based operating system. Ansible project does not support Windows machines as a controller.</p>
+
+<p>I prefer a separate server that can be better isolated and monitored than, for example, sysadmin laptops. One solution is to have a separate network segment for the controller where all traffic would go through a firewall. In the use-case of this post, an example architecture could like one in the below picture.</p>
+
+<p><img src="/assets/winrm-ansible-segmentation.png" alt="" /></p>
+
+<p>For secret-management, Ansible provides a solution called Ansible vault. It allows you to encrypt files and in-line strings. This way, there’s no need to store secrets in plaintext.</p>
+
+<h3 id="tier-model-for-priviliged-access">Tier model for priviliged access</h3>
+
+<p>When planning the access for Ansible in your domain environment, you should plan the privilege model in the same way you would do with a human administrator.</p>
+
+<p>I have only shown examples with one controller machine and one user account to run Ansible on member machines. However, it may not be the best option if you want to manage the whole Active Directory environment with Ansible.</p>
+
+<p>If you only want to manage, for example, a few servers with similar security requirements, then it does make sense to have one account for this, which is only allowed to access those specific servers.</p>
+
+<p>When you want to manage machines with different security-levels, like DCs and member servers, you should have separate user accounts for each security level. A  minimal separation would be something like in the below picture.</p>
+
+<p><img src="/assets/winrm-ansible-users.png" alt="" /></p>
+
+<p>So, technically this is the same solution that Microsoft recommends for Active Directory administration in general.  Check these documents for more information:</p>
+
+<ul>
+  <li><a href="https://docs.microsoft.com/en-us/microsoft-identity-manager/pam/tier-model-for-partitioning-administrative-privileges">https://docs.microsoft.com/en-us/microsoft-identity-manager/pam/tier-model-for-partitioning-administrative-privileges</a></li>
+  <li><a href="https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/protecting-domain-administrative-credentials/ba-p/259210">https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/protecting-domain-administrative-credentials/ba-p/259210</a></li>
+</ul>
+
+
+  </div><a class="u-url" href="/2021/01/12/manage-windows-hosts-with-ansible.html" hidden></a>
+</article>
+
+<!-- TOC -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="/js/toc.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    $('#toc').toc();
+});
+</script>
+
+
+<!-- mermaid -->
+<script>
+var config = {
+    startOnLoad:true,
+    theme: 'forest',
+    flowchart:{
+            useMaxWidth:false,
+            htmlLabels:true
+        }
+};
+mermaid.initialize(config);
+window.mermaid.init(undefined, document.querySelectorAll('.language-mermaid'));
+</script>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col">
+        <p class="feed-subscribe">
+          <a href="/feed.xml">
+            <svg class="svg-icon orange">
+              <use xlink:href="/assets/minima-social-icons.svg#rss"></use>
+            </svg><span>Subscribe</span>
+          </a>
+        </p>
+        <ul class="contact-list">
+          <li class="p-name">mtask</li>
+          <li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li><li><a href="/files/publickey.mtask.gh@protonmail.com.asc">8949b98a4e63585fe3bf6a953b9fd3e9ad04482e (gpg)</a></li></ul>
+      </div>
+      <div class="footer-col">
+        <p>cybersecurity, homelab tinkering, etc.</p>
+      </div>
+    </div>
+
+    <div class="social-links"><ul class="social-media-list"><li><a rel="me" href="https://github.com/mtask" title="mtask"><svg class="svg-icon grey"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg></a></li></ul>
+</div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Replacing Rsnapshot with Duplicity | Blog</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="Replacing Rsnapshot with Duplicity" />
+<meta name="author" content="mtask" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="cybersecurity, homelab tinkering, etc." />
+<meta property="og:description" content="cybersecurity, homelab tinkering, etc." />
+<link rel="canonical" href="http://localhost:4000/2021/10/22/replace-rsnasphot-with-duplicity.html" />
+<meta property="og:url" content="http://localhost:4000/2021/10/22/replace-rsnasphot-with-duplicity.html" />
+<meta property="og:site_name" content="Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-10-22T00:00:00+03:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Replacing Rsnapshot with Duplicity" />
+<script type="application/ld+json">
+{"@type":"BlogPosting","headline":"Replacing Rsnapshot with Duplicity","dateModified":"2021-10-22T00:00:00+03:00","datePublished":"2021-10-22T00:00:00+03:00","url":"http://localhost:4000/2021/10/22/replace-rsnasphot-with-duplicity.html","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2021/10/22/replace-rsnasphot-with-duplicity.html"},"author":{"@type":"Person","name":"mtask"},"description":"cybersecurity, homelab tinkering, etc.","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Blog" />
+</head>
+<body><header class="site-header">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/">/posts</a><a class="page-link" href="/whoami/">/whoami</a><a class="page-link" href="/categories/">/categories</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Replacing Rsnapshot with Duplicity</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-10-22T00:00:00+03:00" itemprop="datePublished">Oct 22, 2021
+      </time></p>
+   </header>
+  <div class="post-categories">
+    
+    [
+    <a href="/categories/#homelab">homelab</a>
+    
+    ]
+  </div>
+  <div id="toc"></div>
+  <div class="post-content e-content" itemprop="articleBody">
+    
+<p>It seems that Rsnapshot has been dropped out from Debian Bullseye. I have been using Rsnapshot a lot for past five years and Debian is usually my server OS choice. So, this was an unpleasent suprise.</p>
+
+<p>Based on the releated <a href="https://github.com/rsnapshot/rsnapshot/issues/279">Github issue</a> discussions it seems like it’s best to have some alternative even if installing Rsnapshot outside package manager would be possible.</p>
+
+<p>I have usually had some setup like the one below to handle backups with my own servers.</p>
+
+<p><img src="/assets/rsnapshot-arch.png" alt="rsnapshot" /></p>
+
+<p>This way I have had local copies if I just accidentally delete some file or something, but also have remote versions in case there has been a bigger SHTF situation.</p>
+
+<p>I show my first few attempts  with Duplicity in this post. After those attempts the latest versions will be found <a href="https://github.com/mtask/duplicity-ansible">here</a> in format of Ansible role.</p>
+
+<h2 id="first-iteration">First iteration</h2>
+
+<p>Duplicity offers encryption and signing using GPG but in the first iteration I only try to do local incremental backups and won’t implement GPG features.</p>
+
+<p>Below are sample files for daily backup setup. Every 30th backup is full backup (not incremental), incremental backups are stored for 1-6 full backups, and 12 full backups are stored.</p>
+
+<p>The target structure per backup source is something like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>full
+  inc (daily)
+  ...+29
+full (about month)
+  inc
+  ...+29
+full
+  inc
+  ...+29
+full
+  inc
+  ...+29
+full
+  inc
+  ...+29
+full
+  inc
+  ...+29
+full
+full
+full
+full
+full
+full (about year)
+</code></pre></div></div>
+
+<h3 id="wrapper-script-and-configuration">Wrapper script and configuration</h3>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">/etc/backups/backup.config</code>:</li>
+</ul>
+
+<p>This is a configuration file to specify source(s) and destination for backup.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">sources</span><span class="o">=(</span> <span class="s2">"/etc/"</span> <span class="s2">"/opt/nginx/"</span> <span class="o">)</span>
+<span class="nv">destination</span><span class="o">=</span><span class="s2">"file:///srv/backups/"</span>
+</code></pre></div></div>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">/usr/local/sbin/backup.sh</code>:</li>
+</ul>
+
+<p>This script is used to take backups with duplicity.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="c">## Remote backup script. Requires duplicity.</span>
+
+<span class="nb">.</span> /etc/backups/backup.config
+
+<span class="c"># this check is mainly placeholder for now</span>
+<span class="c"># will maybe implement other destinations later</span>
+<span class="k">if</span>  <span class="o">[[</span> <span class="s2">"</span><span class="nv">$destination</span><span class="s2">"</span> <span class="o">==</span> file:///<span class="k">*</span> <span class="o">]]</span>
+<span class="k">then
+  </span><span class="nv">dest_local_path</span><span class="o">=</span><span class="k">${</span><span class="nv">destination</span><span class="p">##file</span>://<span class="k">}</span> 
+  <span class="nb">echo</span> <span class="nv">$dest_local_path</span>
+  <span class="k">for </span>src <span class="k">in</span> <span class="s2">"</span><span class="k">${</span><span class="nv">sources</span><span class="p">[@]</span><span class="k">}</span><span class="s2">"</span>
+  <span class="k">do
+    </span><span class="nv">full_dest</span><span class="o">=</span><span class="s2">"</span><span class="nv">$dest_local_path</span><span class="s2">"</span>/<span class="s2">"</span><span class="nv">$src</span><span class="s2">"</span>
+    <span class="nb">echo</span> <span class="nv">$full_dest</span>
+    <span class="nb">mkdir</span> <span class="nt">-p</span> <span class="s2">"</span><span class="nv">$full_dest</span><span class="s2">"</span>
+    duplicity <span class="nt">--verbosity</span> notice <span class="se">\</span>
+         <span class="nt">--no-encryption</span> <span class="se">\</span>
+         <span class="nt">--full-if-older-than</span> 30D <span class="se">\</span>
+         <span class="nt">--num-retries</span> 3 <span class="se">\</span>
+         <span class="nt">--archive-dir</span> /root/.cache/duplicity <span class="se">\</span>
+         <span class="nt">--log-file</span> /var/log/duplicity.log <span class="se">\</span>
+         <span class="s2">"</span><span class="nv">$src</span><span class="s2">"</span> <span class="s2">"file://</span><span class="nv">$full_dest</span><span class="s2">"</span>
+    duplicity remove-all-but-n-full 12 <span class="nt">--force</span> <span class="s2">"file://</span><span class="nv">$full_dest</span><span class="s2">"</span>
+    duplicity remove-all-inc-of-but-n-full 6 <span class="nt">--force</span> <span class="s2">"file://</span><span class="nv">$full_dest</span><span class="s2">"</span>
+  <span class="k">done
+fi</span>
+</code></pre></div></div>
+
+<p>As far I have been able to understand duplicity expects one source directory. Meaning that in a case where I would like to backup <code class="language-plaintext highlighter-rouge">/etc/</code> and <code class="language-plaintext highlighter-rouge">/opt/nginx</code> I would need to set root (<code class="language-plaintext highlighter-rouge">/</code>) as source directory and exclude everything I don’t want backup.</p>
+
+<p>The script dynamically creates source directories’ top-level structure to destination and uses those as actual destination directories. For example, with <code class="language-plaintext highlighter-rouge">sources=( "/etc/" "/opt/nginx/" )</code>, the end result is:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ /usr/local/sbin/backup.sh
+...
+$ tree /srv/
+/srv/
+└── backups
+    ├── etc
+    │   ├── duplicity-full.20211022T155123Z.manifest
+    │   ├── duplicity-full.20211022T155123Z.vol1.difftar.gz
+    │   └── duplicity-full-signatures.20211022T155123Z.sigtar.gz
+    └── opt
+        └── nginx
+            ├── duplicity-full.20211022T155123Z.manifest
+            ├── duplicity-full.20211022T155123Z.vol1.difftar.gz
+            └── duplicity-full-signatures.20211022T155123Z.sigtar.gz
+
+4 directories, 6 files
+</code></pre></div></div>
+<p>Now I can seperately handle <code class="language-plaintext highlighter-rouge">/etc/</code> and <code class="language-plaintext highlighter-rouge">/opt/nginx/</code>backups:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># list files in /srv/backups/etc
+duplicity list-current-files file:///srv/backups/etc
+
+# list files in /srv/backups/etc/nginx
+duplicity list-current-files file:///srv/backups/opt/nginx
+
+# Restore /etc/passwd to /tmp/passwd
+duplicity --file-to-restore passwd file:///srv/backups/etc/ /tmp/passwd --no-encryption
+</code></pre></div></div>
+
+<h3 id="automation-with-systemd-timer">Automation with systemd timer</h3>
+
+<p>This setup does not yet implement similar setup that I used to have with Rsnapshot. With Rsnapshot I usually implemented similar setup that can be found in <a href="https://wiki.archlinux.org/title/Rsnapshot">Arch Linux wiki</a>.</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">/etc/systemd/system/duplicity.service</code>:</li>
+</ul>
+
+<p>This is systemd unit file that executes <code class="language-plaintext highlighter-rouge">backup.sh</code> script.</p>
+
+<div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[Unit]</span>
+<span class="py">Description</span><span class="p">=</span><span class="s">duplicity backups</span>
+
+<span class="nn">[Service]</span>
+<span class="py">Type</span><span class="p">=</span><span class="s">oneshot</span>
+<span class="py">Nice</span><span class="p">=</span><span class="s">19</span>
+<span class="py">IOSchedulingClass</span><span class="p">=</span><span class="s">idle</span>
+<span class="py">ExecStart</span><span class="p">=</span><span class="s">/usr/local/sbin/backup.sh</span>
+</code></pre></div></div>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">/etc/systemd/system/duplicity.timer</code>:</li>
+</ul>
+
+<p>This is timer that calls <code class="language-plaintext highlighter-rouge">duplicity.service</code> every day 05:30.</p>
+
+<div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[Unit]</span>
+<span class="py">Description</span><span class="p">=</span><span class="s">duplicity daily backup</span>
+
+<span class="nn">[Timer]</span>
+<span class="c"># 05:30 is the clock time when to start it
+</span><span class="py">OnCalendar</span><span class="p">=</span><span class="s">05:30</span>
+<span class="py">Persistent</span><span class="p">=</span><span class="s">true</span>
+<span class="py">Unit</span><span class="p">=</span><span class="s">duplicity.service</span>
+
+<span class="nn">[Install]</span>
+<span class="py">WantedBy</span><span class="p">=</span><span class="s">timers.target</span>
+</code></pre></div></div>
+
+<h2 id="second-iteration">Second iteration</h2>
+
+<p>In second iteration I added support for (asymmetric) GPG encryption.</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">/etc/backups/backup.config</code>:</li>
+</ul>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">sources</span><span class="o">=(</span> <span class="s2">"/etc/"</span> <span class="o">)</span>
+<span class="nv">destination</span><span class="o">=</span><span class="s2">"file:///srv/backups/"</span>
+<span class="nv">encrypt</span><span class="o">=</span>1
+<span class="nv">gpg_homedir</span><span class="o">=</span><span class="s2">"/root/.backup_gpg"</span>
+<span class="nv">gpg_encrypt_key</span><span class="o">=</span><span class="s2">"AEB4DF38A524CE433C2C37E87CA89DEC20476FBC"</span>
+</code></pre></div></div>
+
+<p>When <code class="language-plaintext highlighter-rouge">encrypt=1</code> then <code class="language-plaintext highlighter-rouge">gpg_encrypt_key</code> is used to encrypt backups and <code class="language-plaintext highlighter-rouge">gpg_encrypt_key</code> needs to be imported to <code class="language-plaintext highlighter-rouge">gpg_homedir</code> and trusted.</p>
+
+<p>Importing with <code class="language-plaintext highlighter-rouge">--homedir</code>:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>gpg <span class="nt">--homedir</span> /root/.backup_gpg <span class="nt">--import</span> /root/enc.pub
+</code></pre></div></div>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">/usr/local/sbin/backup.sh</code>:</li>
+</ul>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="c">## Remote backup script. Requires duplicity.</span>
+
+<span class="nb">.</span> /etc/backups/backup.config
+
+<span class="nv">dest_local_path</span><span class="o">=</span><span class="k">${</span><span class="nv">destination</span><span class="p">##*</span>://<span class="k">}</span> 
+<span class="nv">backend</span><span class="o">=</span><span class="k">${</span><span class="nv">destination</span><span class="p">%</span>://<span class="p">*</span><span class="k">}</span>
+<span class="nb">echo</span> <span class="nv">$dest_local_path</span>
+<span class="k">for </span>src <span class="k">in</span> <span class="s2">"</span><span class="k">${</span><span class="nv">sources</span><span class="p">[@]</span><span class="k">}</span><span class="s2">"</span>
+<span class="k">do
+  </span><span class="nv">full_dest</span><span class="o">=</span><span class="s2">"</span><span class="nv">$dest_local_path</span><span class="s2">"</span>/<span class="s2">"</span><span class="nv">$src</span><span class="s2">"</span>
+  <span class="nb">echo</span> <span class="nv">$full_dest</span>
+  <span class="nb">mkdir</span> <span class="nt">-p</span> <span class="s2">"</span><span class="nv">$full_dest</span><span class="s2">"</span>
+  <span class="k">if</span> <span class="o">[[</span> <span class="s2">"</span><span class="nv">$encrypt</span><span class="s2">"</span> <span class="o">==</span> 1 <span class="o">]]</span>
+  <span class="k">then
+      </span>duplicity <span class="nt">--gpg-options</span><span class="o">=</span><span class="s2">"--homedir=</span><span class="nv">$gpg_homedir</span><span class="s2">"</span> <span class="nt">--encrypt-key</span><span class="o">=</span><span class="s2">"</span><span class="nv">$gpg_encrypt_key</span><span class="s2">"</span> <span class="se">\</span>
+           <span class="nt">--verbosity</span> notice <span class="se">\</span>
+           <span class="nt">--full-if-older-than</span> 30D <span class="se">\</span>
+           <span class="nt">--num-retries</span> 3 <span class="se">\</span>
+           <span class="nt">--archive-dir</span> /root/.cache/duplicity <span class="se">\</span>
+           <span class="nt">--log-file</span> /var/log/duplicity.log <span class="se">\</span>
+           <span class="s2">"</span><span class="nv">$src</span><span class="s2">"</span> <span class="s2">"</span><span class="nv">$backend</span><span class="s2">://</span><span class="nv">$full_dest</span><span class="s2">"</span>
+      duplicity <span class="nt">--gpg-options</span><span class="o">=</span><span class="s2">"--homedir=</span><span class="nv">$gpg_homedir</span><span class="s2">"</span> <span class="nt">--encrypt-key</span><span class="o">=</span><span class="s2">"</span><span class="nv">$gpg_encrypt_key</span><span class="s2">"</span> remove-all-but-n-full 12 <span class="nt">--force</span> <span class="s2">"</span><span class="nv">$backend</span><span class="s2">://</span><span class="nv">$full_dest</span><span class="s2">"</span>
+      duplicity <span class="nt">--gpg-options</span><span class="o">=</span><span class="s2">"--homedir=</span><span class="nv">$gpg_homedir</span><span class="s2">"</span> <span class="nt">--encrypt-key</span><span class="o">=</span><span class="s2">"</span><span class="nv">$gpg_encrypt_key</span><span class="s2">"</span> remove-all-inc-of-but-n-full 6 <span class="nt">--force</span> <span class="s2">"</span><span class="nv">$backend</span><span class="s2">://</span><span class="nv">$full_dest</span><span class="s2">"</span>
+  <span class="k">else
+      </span>duplicity <span class="nt">--verbosity</span> notice <span class="se">\</span>
+           <span class="nt">--no-encryption</span> <span class="se">\</span>
+           <span class="nt">--full-if-older-than</span> 30D <span class="se">\</span>
+           <span class="nt">--num-retries</span> 3 <span class="se">\</span>
+           <span class="nt">--archive-dir</span> /root/.cache/duplicity <span class="se">\</span>
+           <span class="nt">--log-file</span> /var/log/duplicity.log <span class="se">\</span>
+           <span class="s2">"</span><span class="nv">$src</span><span class="s2">"</span> <span class="s2">"</span><span class="nv">$backend</span><span class="s2">://</span><span class="nv">$full_dest</span><span class="s2">"</span>
+      duplicity remove-all-but-n-full 12 <span class="nt">--force</span> <span class="s2">"</span><span class="nv">$backend</span><span class="s2">://</span><span class="nv">$full_dest</span><span class="s2">"</span>
+      duplicity remove-all-inc-of-but-n-full 6 <span class="nt">--force</span> <span class="s2">"</span><span class="nv">$backend</span><span class="s2">://</span><span class="nv">$full_dest</span><span class="s2">"</span>
+  <span class="k">fi
+done</span>
+
+</code></pre></div></div>
+
+<p>The main difference with the previous iteration is <code class="language-plaintext highlighter-rouge">if [[ "$encrypt" == 1 ]]</code> check and seperate duplicity calls based on the result.</p>
+
+<p>I also removed hard-coded <code class="language-plaintext highlighter-rouge">file://</code> backend references and now other backends like <code class="language-plaintext highlighter-rouge">scp://</code> or <code class="language-plaintext highlighter-rouge">sftp://</code> should work as long as ssh connection is configured to work with keys. This is configurable with the <code class="language-plaintext highlighter-rouge">destination=</code> setting.</p>
+
+  </div><a class="u-url" href="/2021/10/22/replace-rsnasphot-with-duplicity.html" hidden></a>
+</article>
+
+<!-- TOC -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="/js/toc.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    $('#toc').toc();
+});
+</script>
+
+
+<!-- mermaid -->
+<script>
+var config = {
+    startOnLoad:true,
+    theme: 'forest',
+    flowchart:{
+            useMaxWidth:false,
+            htmlLabels:true
+        }
+};
+mermaid.initialize(config);
+window.mermaid.init(undefined, document.querySelectorAll('.language-mermaid'));
+</script>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col">
+        <p class="feed-subscribe">
+          <a href="/feed.xml">
+            <svg class="svg-icon orange">
+              <use xlink:href="/assets/minima-social-icons.svg#rss"></use>
+            </svg><span>Subscribe</span>
+          </a>
+        </p>
+        <ul class="contact-list">
+          <li class="p-name">mtask</li>
+          <li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li><li><a href="/files/publickey.mtask.gh@protonmail.com.asc">8949b98a4e63585fe3bf6a953b9fd3e9ad04482e (gpg)</a></li></ul>
+      </div>
+      <div class="footer-col">
+        <p>cybersecurity, homelab tinkering, etc.</p>
+      </div>
+    </div>
+
+    <div class="social-links"><ul class="social-media-list"><li><a rel="me" href="https://github.com/mtask" title="mtask"><svg class="svg-icon grey"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg></a></li></ul>
+</div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

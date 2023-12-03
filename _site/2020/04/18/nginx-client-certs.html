@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Nginx and client certificates | Blog</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="Nginx and client certificates" />
+<meta name="author" content="mtask" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="cybersecurity, homelab tinkering, etc." />
+<meta property="og:description" content="cybersecurity, homelab tinkering, etc." />
+<link rel="canonical" href="http://localhost:4000/2020/04/18/nginx-client-certs.html" />
+<meta property="og:url" content="http://localhost:4000/2020/04/18/nginx-client-certs.html" />
+<meta property="og:site_name" content="Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-04-18T00:00:00+03:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Nginx and client certificates" />
+<script type="application/ld+json">
+{"@type":"BlogPosting","headline":"Nginx and client certificates","dateModified":"2020-04-18T00:00:00+03:00","datePublished":"2020-04-18T00:00:00+03:00","url":"http://localhost:4000/2020/04/18/nginx-client-certs.html","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/04/18/nginx-client-certs.html"},"author":{"@type":"Person","name":"mtask"},"description":"cybersecurity, homelab tinkering, etc.","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Blog" />
+</head>
+<body><header class="site-header">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/">/posts</a><a class="page-link" href="/whoami/">/whoami</a><a class="page-link" href="/categories/">/categories</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Nginx and client certificates</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-04-18T00:00:00+03:00" itemprop="datePublished">Apr 18, 2020
+      </time></p>
+   </header>
+  <div class="post-categories">
+    
+    [
+    <a href="/categories/#Security">Security</a>
+    
+    ]
+  </div>
+  <div id="toc"></div>
+  <div class="post-content e-content" itemprop="articleBody">
+    
+<p>TLS  server authentication is a very common process these days, thanks to widely adapted HTTPS usage. Here client (e.g. browser) can verify that server’s certificate is trusted and matches the server’s FQDN name.</p>
+
+<p>TLS client authentication is not as commonly seen, but practically the process is just the same verification done otherways around.  It doesn’t add any extra layers to TLS encryption, but it allows servers to validate that client connection is coming from a trusted party.</p>
+
+<p>This post demonstrates client certificate usage with Nginx.
+Exampes will use a simple architecture where Nginx acts as a reverse proxy in front of a backend service.</p>
+
+<p>Technically we are doing <em>mutual authentication</em><sup id="fnref:1" role="doc-noteref"><a href="#fn:1" class="footnote" rel="footnote">1</a></sup>, but I will concentrate more on the client authentication.</p>
+
+<h2 id="generate-test-certificate">Generate test certificate</h2>
+
+<p>Here are examples of how to generate self-signed certificates for <strong>testing</strong>. Copy these certificate(s) and private key(s) to the machine where you will configure the Nginx.</p>
+
+<h3 id="client-certificate">Client certificate</h3>
+
+<p>Let’s generate a self-signed client certificate:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-x509</span> <span class="nt">-newkey</span> rsa:4096 <span class="nt">-keyout</span> client1_key.pem <span class="nt">-out</span> client1_crt.pem <span class="nt">-days</span> 10000 <span class="nt">-nodes</span>
+</code></pre></div></div>
+
+<p>This gives us:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">client1_crt.pem</code> - client certificate</li>
+  <li><code class="language-plaintext highlighter-rouge">client1_key.pem</code> - matching private key</li>
+</ul>
+
+<p>We will use this certificate to authenticate with Nginx server.</p>
+
+<p><img src="/assets/nginx_client_tls_arch.png" alt="architecture" /></p>
+
+<h3 id="server-certificate">Server certificate</h3>
+
+<p>You can use the same command as with client certificates to generate your server certificate. With a publicly registered domain, you can also use certificate provider like <a href="https://letsencrypt.org/">Let’s Encrypt</a>.</p>
+
+<h2 id="install-and-configuring-nginx">Install and configuring Nginx</h2>
+
+<ol>
+  <li>
+    <p>Install Nginx server</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># debian/ubuntu</span>
+<span class="nb">sudo </span>apt <span class="nb">install </span>nginx
+<span class="c"># centos</span>
+<span class="nb">sudo </span>yum <span class="nb">install </span>nginx
+<span class="c"># Arch</span>
+<span class="nb">sudo </span>pacman <span class="nb">install </span>nginx
+<span class="c"># etc.</span>
+</code></pre></div>    </div>
+  </li>
+  <li>Create a new site file…
+<code class="language-plaintext highlighter-rouge">/etc/nginx/sites-available/&lt;mysite&gt;</code> 
+ … and open the file with your favorite text editor.</li>
+  <li>
+    <p>Add the following configuration<sup id="fnref:2" role="doc-noteref"><a href="#fn:2" class="footnote" rel="footnote">2</a></sup> and change the commented parts:</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+server {
+    listen 443;
+    ssl on;
+    server_name	yourdomain.com; # set you domain here
+    server_tokens off;
+    proxy_ssl_server_name on;
+    # SERVER certificate:
+    ssl_certificate /etc/nginx/ssl/fullchain.pem; 
+    # SERVER private key:
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem; 
+    # Previously generated CLIENT certificate
+    ssl_client_certificate /etc/nginx/clinet/client1_crt.pem;
+    # Require client to present certificate
+    ssl_verify_client on;
+    # Check footnotes for other stuff
+    ssl_protocols TLSv1.2;
+    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers on;
+   
+   
+    keepalive_timeout 10;
+    ssl_session_timeout 5m;
+   
+location / {
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Host $http_host;
+    proxy_redirect off;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://localhost:8888;
+  }
+}
+
+</code></pre></div>    </div>
+  </li>
+  <li>Enable site:
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd</span> /etc/nginx/sites-enabled/
+<span class="nb">ln</span> <span class="nt">-s</span> ../sites-available/&lt;mysite&gt; <span class="nb">.</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Restart Nginx:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>systemctl restart nginx
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<h2 id="setup-backend-server">Setup Backend Server</h2>
+
+<p>Our backend service will be a small Python script that I originally found <a href="https://gist.github.com/mdonkers/63e115cc0c79b4f6b8b3a6b797e485c7">here</a>. Store the source code somewhere e.g. as <code class="language-plaintext highlighter-rouge">server.py</code></p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/env python3
+</span><span class="s">"""
+Very simple HTTP server in python for logging requests
+Usage::
+    ./server.py [&lt;port&gt;]
+"""</span>
+<span class="kn">from</span> <span class="nn">http.server</span> <span class="kn">import</span> <span class="n">BaseHTTPRequestHandler</span><span class="p">,</span> <span class="n">HTTPServer</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="k">class</span> <span class="nc">S</span><span class="p">(</span><span class="n">BaseHTTPRequestHandler</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_set_response</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="p">.</span><span class="n">send_response</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span>
+        <span class="bp">self</span><span class="p">.</span><span class="n">send_header</span><span class="p">(</span><span class="s">'Content-type'</span><span class="p">,</span> <span class="s">'text/html'</span><span class="p">)</span>
+        <span class="bp">self</span><span class="p">.</span><span class="n">end_headers</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">do_GET</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logging</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="s">"GET request,</span><span class="se">\n</span><span class="s">Path: %s</span><span class="se">\n</span><span class="s">Headers:</span><span class="se">\n</span><span class="s">%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">path</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">headers</span><span class="p">))</span>
+        <span class="bp">self</span><span class="p">.</span><span class="n">_set_response</span><span class="p">()</span>
+        <span class="bp">self</span><span class="p">.</span><span class="n">wfile</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="s">"GET request for {}"</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">path</span><span class="p">).</span><span class="n">encode</span><span class="p">(</span><span class="s">'utf-8'</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">do_POST</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">content_length</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">headers</span><span class="p">[</span><span class="s">'Content-Length'</span><span class="p">])</span> <span class="c1"># &lt;--- Gets the size of data
+</span>        <span class="n">post_data</span> <span class="o">=</span> <span class="bp">self</span><span class="p">.</span><span class="n">rfile</span><span class="p">.</span><span class="n">read</span><span class="p">(</span><span class="n">content_length</span><span class="p">)</span> <span class="c1"># &lt;--- Gets the data itself
+</span>        <span class="n">logging</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="s">"POST request,</span><span class="se">\n</span><span class="s">Path: %s</span><span class="se">\n</span><span class="s">Headers:</span><span class="se">\n</span><span class="s">%s</span><span class="se">\n\n</span><span class="s">Body:</span><span class="se">\n</span><span class="s">%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span>
+                <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">path</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">headers</span><span class="p">),</span> <span class="n">post_data</span><span class="p">.</span><span class="n">decode</span><span class="p">(</span><span class="s">'utf-8'</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="p">.</span><span class="n">_set_response</span><span class="p">()</span>
+        <span class="bp">self</span><span class="p">.</span><span class="n">wfile</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="s">"POST request for {}"</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">path</span><span class="p">).</span><span class="n">encode</span><span class="p">(</span><span class="s">'utf-8'</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">server_class</span><span class="o">=</span><span class="n">HTTPServer</span><span class="p">,</span> <span class="n">handler_class</span><span class="o">=</span><span class="n">S</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">8080</span><span class="p">):</span>
+    <span class="n">logging</span><span class="p">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="p">.</span><span class="n">INFO</span><span class="p">)</span>
+    <span class="n">server_address</span> <span class="o">=</span> <span class="p">(</span><span class="s">''</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+    <span class="n">httpd</span> <span class="o">=</span> <span class="n">server_class</span><span class="p">(</span><span class="n">server_address</span><span class="p">,</span> <span class="n">handler_class</span><span class="p">)</span>
+    <span class="n">logging</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="s">'Starting httpd...</span><span class="se">\n</span><span class="s">'</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">httpd</span><span class="p">.</span><span class="n">serve_forever</span><span class="p">()</span>
+    <span class="k">except</span> <span class="nb">KeyboardInterrupt</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="n">httpd</span><span class="p">.</span><span class="n">server_close</span><span class="p">()</span>
+    <span class="n">logging</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="s">'Stopping httpd...</span><span class="se">\n</span><span class="s">'</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">'__main__'</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">sys</span> <span class="kn">import</span> <span class="n">argv</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">argv</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">run</span><span class="p">(</span><span class="n">port</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">run</span><span class="p">()</span>
+
+</code></pre></div></div>
+
+<h2 id="run-authentication-tests">Run authentication tests</h2>
+
+<ol>
+  <li>
+    <p>Start the Python server. You can launch it inside a screen session and keep it running:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>screen
+python3 server.py 8888
+<span class="c">#detach screen: ctrl+A+D</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Make sure that Nginx is running correctly:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>systemctl status nginx
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Now you can test the connection with curl:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">--key</span> path_to/client1_key.pem <span class="nt">--cert</span> path_to/client1_crt.pem https://your.domain
+</code></pre></div>    </div>
+
+    <p>You can specify CA certificate with <code class="language-plaintext highlighter-rouge">--cacert &lt;file&gt;</code> option, in case your server’s certificate isn’t trusted by your machine.</p>
+  </li>
+  <li>
+    <p>Check server’s output:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#in case you used screen</span>
+screen <span class="nt">-r</span>
+</code></pre></div>    </div>
+
+    <p>You should see something like this:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># python3 server.py 8888</span>
+INFO:user:Starting httpd...
+   
+INFO:user:GET request,
+Path: /
+Headers:
+X-Forwarded-For: 127.0.0.1
+Host: yourdomain.com
+X-Forwarded-Proto: https
+Connection: close
+User-Agent: curl/7.52.1
+Accept: <span class="k">*</span>/<span class="k">*</span>
+    
+127.0.0.1 - - <span class="o">[</span>16/Apr/2020 10:42:55] <span class="s2">"GET / HTTP/1.0"</span> 200 -
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Now test the connection without the client certificate:</p>
+
+    <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl https://your.domain
+</code></pre></div>    </div>
+
+    <p>You should get a response like this:</p>
+
+    <div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;html&gt;</span>
+<span class="nt">&lt;head&gt;&lt;title&gt;</span>400 No required SSL certificate was sent<span class="nt">&lt;/title&gt;&lt;/head&gt;</span>
+<span class="nt">&lt;body</span> <span class="na">bgcolor=</span><span class="s">"white"</span><span class="nt">&gt;</span>
+<span class="nt">&lt;center&gt;&lt;h1&gt;</span>400 Bad Request<span class="nt">&lt;/h1&gt;&lt;/center&gt;</span>
+<span class="nt">&lt;center&gt;</span>No required SSL certificate was sent<span class="nt">&lt;/center&gt;</span>
+<span class="nt">&lt;hr&gt;&lt;center&gt;</span>nginx<span class="nt">&lt;/center&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<h2 id="the-chain-of-trust">The chain of trust</h2>
+
+<p><img src="/assets/client_tls.png" alt="trust chaing" /></p>
+
+<p>In our above example, we generated a <em>self-signed</em> client certificate which was then given directly as a <em>ssl_client_certificate</em> parameter. In a real-life scenario, your client certificates should be signed with your CA’s root certificate or with your CA’s intermediate certificate. With both of these cases, your CA’s root certificate would be set in the <em>ssl_client_certificate</em> parameter.</p>
+
+<p>It’s possible to use certificates signed by a public CA, but usually, you don’t want to do that with client certificates as then unknown parties could request certificates from the same CA and authenticate with your TLS endpoint.</p>
+
+<p>When an intermediate certificate is used to sign client certificates you can bundle client certificates with the intermediate certificate and this way the Nginx server can verify the full certificate chain.</p>
+
+<p>Notice that certificates signed with other intermediate certificates of the same CA, or certificates directly signed with the root certificate, will pass the authentication as well.</p>
+
+<h2 id="access-client-certificates-details">Access client certificates’ details</h2>
+
+<p>Sometimes it can be enough to accept certificates from a specific CA, but sometimes you may need to validate client certificates more closely.</p>
+
+<p>Nginx’s <em>ngx_http_ssl_module</em> has multiple variables to access certificate details. 
+We will now focus to <em>ssl_client_s_dn</em> variable which includes the value of certificate’s <em>distinguished name (dn)</em>.
+You can see other variables <a href="http://nginx.org/en/docs/http/ngx_http_ssl_module.html">here</a>.</p>
+
+<h3 id="pass-certificate-details-to-backend-service">Pass certificate details to backend service</h3>
+
+<p>You can pass certificate’s DN string to backend inside a header like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>location / {
+...
+   proxy_set_header X-ssl-dn $ssl_client_s_dn;
+...
+}
+#Remember to restart nginx after changes
+</code></pre></div></div>
+
+<p>Now you can try curl again (with client certificate) and our python server should print the certificate’s DN value inside the <code class="language-plaintext highlighter-rouge">X-ssl-dn</code> header.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>127.0.0.1 - - [16/Apr/2020 11:21:17] "GET / HTTP/1.0" 200 -
+INFO:user:GET request,
+Path: /
+Headers:
+X-Forwarded-For: 127.0.0.1
+X-ssl-dn: /C=XY/ST=Some-State/O=Internet Widgits Pty Ltd/CN=client.1.local
+Host: yourdomain.com
+X-Forwarded-Proto: https
+Connection: close
+User-Agent: curl/7.52.1
+Accept: */*
+
+
+
+127.0.0.1 - - [16/Apr/2020 11:29:13] "GET / HTTP/1.0" 200 -
+</code></pre></div></div>
+
+<h2 id="validate-access-in-nginx">Validate access in Nginx</h2>
+
+<p>Sometimes you may want to do further validation already on the Nginx server and minimize requests that are forwarded to backend service. 
+Another reason could be that your backend service doesn’t need to be aware of client certificates.</p>
+
+<p>I will show few examples of how you can allow only specific certificates, or certificates from a specific issuer, with Nginx’s configuration.</p>
+
+<h3 id="allow-specific-certificates-only">Allow specific certificates only</h3>
+
+<p>We can use <em>if</em> statements in Nginx to allow only few specific certificates. However, read <a href="https://www.nginx.com/resources/wiki/start/topics/depth/ifisevil/">this</a> before you start to play around with if statements.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>server{
+...   
+    if ($ssl_client_s_dn !~ "(C=FI/ST=Some-State/O=Internet Widgits Pty Ltd/CN=client.2.local)|(/C=FI/ST=Some-State/O=Internet Widgits Pty Ltd/CN=client.1.local)")
+    {
+        return 403;
+    }
+    
+    location / {
+...
+</code></pre></div></div>
+
+<p>This approach should only accept certificates that DN string matches with client1 or client2.</p>
+
+<h3 id="allow-only-certificates-from-a-specific-issuer">Allow only certificates from a specific issuer</h3>
+
+<p>Think about a situation where you have an internal CA with multiple intermedia certificates. 
+Those intermediate certificates have been used to issue certificates into all kinds of internal services.</p>
+
+<p>Now imagine you have a new service that should only allow access when the client’s certificate is issued by a specific intermediate certificate.
+To achieve this kind of restriction I will briefly demonstrate another Nginx variable:</p>
+
+<blockquote>
+  <p><em>$ssl_client_i_dn returns the “issuer DN” string of the client certificate for an established SSL connection according to RFC 2253 (1.11.6);</em></p>
+
+  <p>– http://nginx.org/en/docs/http/ngx_http_ssl_module.html</p>
+</blockquote>
+
+<p>The below image demonstrates CA’s structure and validation that we want to achieve.</p>
+
+<p><img src="/assets/castructure.png" alt="" /></p>
+
+<p>Nginx rule that we can use won’t differ much from validating client’s DN value:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>if ($ssl_client_i_dn !~ 'Intermediate 1')
+{
+   return 403;
+}
+</code></pre></div></div>
+
+<p>Now Nginx should forward client request only when certificate is issued by the intermediate certificate <em>Intermediate 1</em>.</p>
+
+<h2 id="remember-those-layers">Remember those layers</h2>
+
+<p>One thing to remember is that you shouldn’t concentrate only on perimeter security.</p>
+
+<p>Here’s a simple illustration of a quite traditional scenario where these services are located, for example, inside an on-premises server room (aka broom closet), and this office has only one big flat network. 
+Consider what potential issues are in the below image. You can imagine that there are other services and bunch of desktop users inside the same perimeter.</p>
+
+<p><img src="/assets/perimeter_nxing.png" alt="perimeter" /></p>
+
+<p>Well, the main issue is that someone behind the perimeter could communicate directly with the backend application and bypass the certificate authentication.</p>
+
+<p>We can demonstrate this with our Python backen service. Let’s modify the code a bit:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    <span class="k">def</span> <span class="nf">_set_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ok</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">.</span><span class="n">send_response</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span>
+            <span class="bp">self</span><span class="p">.</span><span class="n">send_header</span><span class="p">(</span><span class="s">'Content-type'</span><span class="p">,</span> <span class="s">'text/html'</span><span class="p">)</span>
+            <span class="bp">self</span><span class="p">.</span><span class="n">end_headers</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">.</span><span class="n">send_response</span><span class="p">(</span><span class="mi">403</span><span class="p">)</span>
+            <span class="bp">self</span><span class="p">.</span><span class="n">send_header</span><span class="p">(</span><span class="s">'Content-type'</span><span class="p">,</span> <span class="s">'text/html'</span><span class="p">)</span>
+            <span class="bp">self</span><span class="p">.</span><span class="n">end_headers</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">authenticate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dn</span><span class="p">):</span>
+        <span class="bp">self</span><span class="p">.</span><span class="n">trusted_dns</span> <span class="o">=</span> <span class="p">[</span><span class="s">"/C=FN/ST=Some-State/O=Internet Widgits Pty Ltd/CN=client.1.local"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">dn</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">.</span><span class="n">trusted_dns</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">do_GET</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">auth</span> <span class="o">=</span> <span class="bp">self</span><span class="p">.</span><span class="n">authenticate</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">headers</span><span class="p">[</span><span class="s">'X-ssl-dn'</span><span class="p">])</span>
+        <span class="n">logging</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="s">"GET request,</span><span class="se">\n</span><span class="s">Path: %s</span><span class="se">\n</span><span class="s">Headers:</span><span class="se">\n</span><span class="s">%s</span><span class="se">\n</span><span class="s">"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">path</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">headers</span><span class="p">))</span>
+        <span class="bp">self</span><span class="p">.</span><span class="n">_set_response</span><span class="p">(</span><span class="n">auth</span><span class="p">)</span>
+        <span class="bp">self</span><span class="p">.</span><span class="n">wfile</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="s">"GET request for {}"</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">path</span><span class="p">).</span><span class="n">encode</span><span class="p">(</span><span class="s">'utf-8'</span><span class="p">))</span>
+</code></pre></div></div>
+<p>I only changed the <code class="language-plaintext highlighter-rouge">do_GET</code> methods, so let’s forget other HTTP methods that were covered by the code. Now when server gets a GET request:</p>
+
+<ol>
+  <li>It will pass <code class="language-plaintext highlighter-rouge">X-ssl-dn</code> header’s value to <code class="language-plaintext highlighter-rouge">authenticate</code> method.</li>
+  <li><code class="language-plaintext highlighter-rouge">authenticate</code> methdos checks if the request’s DN value is found from <code class="language-plaintext highlighter-rouge">trusted_dns</code> list.</li>
+  <li>If DN is in <code class="language-plaintext highlighter-rouge">trusted_dns</code> list, then <code class="language-plaintext highlighter-rouge">200 OK</code> is returned.</li>
+  <li>If DN is not in <code class="language-plaintext highlighter-rouge">trusted_dns</code> list, then <code class="language-plaintext highlighter-rouge">403 forbidden</code> is returned.</li>
+</ol>
+
+<p>The one string that I added in my <code class="language-plaintext highlighter-rouge">trusted_dns</code> list doesn’t match my client certificate’s DN string, so I should get <code class="language-plaintext highlighter-rouge">403</code>response…</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>curl <span class="nt">-v</span> <span class="nt">--key</span> key.pem <span class="nt">--cert</span> cert.pem  https://my.domain
+... 
+&lt; HTTP/1.1 403 Forbidden
+&lt; Server: nginx
+&lt; Date: Mon, 20 Apr 2020 21:27:34 GMT
+&lt; Content-Type: text/html
+&lt; Transfer-Encoding: chunked
+&lt; Connection: keep-alive
+</code></pre></div></div>
+
+<p>…and I did. Let’s now try connect backend service directly without client certificate or additional headers…</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>curl <span class="nt">-v</span> my.domain:8888
+...
+<span class="o">&gt;</span> 
+<span class="k">*</span> HTTP 1.0, assume close after body
+&lt; HTTP/1.0 403 Forbidden
+&lt; Server: BaseHTTP/0.6 Python/3.5.3
+&lt; Date: Mon, 20 Apr 2020 21:34:20 GMT
+&lt; Content-type: text/html
+</code></pre></div></div>
+
+<p>…still 403 response. Let’s send yet another request, but now I will specify the <code class="language-plaintext highlighter-rouge">X-ssl-dn</code> header directly into the request…</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>curl <span class="nt">-v</span> my.domain:8888 <span class="nt">-H</span> <span class="s1">$'X-ssl-dn: /C=FN/ST=Some-State/O=Internet Widgits Pty Ltd/CN=client.1.local'</span>
+<span class="o">&gt;</span> 
+<span class="k">*</span> HTTP 1.0, assume close after body
+&lt; HTTP/1.0 200 OK
+&lt; Server: BaseHTTP/0.6 Python/3.5.3
+&lt; Date: Mon, 20 Apr 2020 21:37:10 GMT
+&lt; Content-type: text/html
+</code></pre></div></div>
+
+<p>…and now we have <code class="language-plaintext highlighter-rouge">200 OK</code> response without need for a client certificate. It’s crucial to remember that certificates should not be considered as secrets because both client and server certificates are sent over the wire unencrypted during the TLS handshake.</p>
+
+<p>The point of these examples was to show, that the correct approach to secure a backend service is to have a solution where the security is on the same level no matter if the user is connecting from an “untrusted” network or from a “trusted” network.</p>
+
+<p><img src="/assets/layered_sec_nxing.png" alt="layered_approach" /></p>
+
+<h2 id="recap">Recap</h2>
+
+<ul>
+  <li>TLS client authetication is quick to setup with Nginx…</li>
+  <li>…but there are lots of things to consider with overall security.</li>
+  <li>Applications still need to validate authentication requests similarly as they would with form-based authentication.</li>
+  <li>You can still have form-based authentication with client certificates, so those can be combined for better security.</li>
+</ul>
+
+<hr />
+<div class="footnotes" role="doc-endnotes">
+  <ol>
+    <li id="fn:1" role="doc-endnote">
+      <p><a href="https://en.wikipedia.org/wiki/Mutual_authentication">https://en.wikipedia.org/wiki/Mutual_authentication</a> <a href="#fnref:1" class="reversefootnote" role="doc-backlink">&#8617;</a></p>
+    </li>
+    <li id="fn:2" role="doc-endnote">
+      <p>The given example configuration of Nginx may not reflect all TLS related security configurations that are recommended at least in production use. Check <a href="https://wiki.mozilla.org/Security/Server_Side_TLS">Mozillas TLS recommendations</a> and <a href="https://ssl-config.mozilla.org/">TLS configuration tool</a> for better overall information. <a href="#fnref:2" class="reversefootnote" role="doc-backlink">&#8617;</a></p>
+    </li>
+  </ol>
+</div>
+
+  </div><a class="u-url" href="/2020/04/18/nginx-client-certs.html" hidden></a>
+</article>
+
+<!-- TOC -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="/js/toc.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    $('#toc').toc();
+});
+</script>
+
+
+<!-- mermaid -->
+<script>
+var config = {
+    startOnLoad:true,
+    theme: 'forest',
+    flowchart:{
+            useMaxWidth:false,
+            htmlLabels:true
+        }
+};
+mermaid.initialize(config);
+window.mermaid.init(undefined, document.querySelectorAll('.language-mermaid'));
+</script>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col">
+        <p class="feed-subscribe">
+          <a href="/feed.xml">
+            <svg class="svg-icon orange">
+              <use xlink:href="/assets/minima-social-icons.svg#rss"></use>
+            </svg><span>Subscribe</span>
+          </a>
+        </p>
+        <ul class="contact-list">
+          <li class="p-name">mtask</li>
+          <li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li><li><a href="/files/publickey.mtask.gh@protonmail.com.asc">8949b98a4e63585fe3bf6a953b9fd3e9ad04482e (gpg)</a></li></ul>
+      </div>
+      <div class="footer-col">
+        <p>cybersecurity, homelab tinkering, etc.</p>
+      </div>
+    </div>
+
+    <div class="social-links"><ul class="social-media-list"><li><a rel="me" href="https://github.com/mtask" title="mtask"><svg class="svg-icon grey"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg></a></li></ul>
+</div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

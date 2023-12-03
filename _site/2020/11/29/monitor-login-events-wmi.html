@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Monitoring Windows login events with WMI | Blog</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="Monitoring Windows login events with WMI" />
+<meta name="author" content="mtask" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="cybersecurity, homelab tinkering, etc." />
+<meta property="og:description" content="cybersecurity, homelab tinkering, etc." />
+<link rel="canonical" href="http://localhost:4000/2020/11/29/monitor-login-events-wmi.html" />
+<meta property="og:url" content="http://localhost:4000/2020/11/29/monitor-login-events-wmi.html" />
+<meta property="og:site_name" content="Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-11-29T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Monitoring Windows login events with WMI" />
+<script type="application/ld+json">
+{"@type":"BlogPosting","headline":"Monitoring Windows login events with WMI","dateModified":"2020-11-29T00:00:00+02:00","datePublished":"2020-11-29T00:00:00+02:00","url":"http://localhost:4000/2020/11/29/monitor-login-events-wmi.html","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/11/29/monitor-login-events-wmi.html"},"author":{"@type":"Person","name":"mtask"},"description":"cybersecurity, homelab tinkering, etc.","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Blog" />
+</head>
+<body><header class="site-header">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/">/posts</a><a class="page-link" href="/whoami/">/whoami</a><a class="page-link" href="/categories/">/categories</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Monitoring Windows login events with WMI</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-11-29T00:00:00+02:00" itemprop="datePublished">Nov 29, 2020
+      </time></p>
+   </header>
+  <div class="post-categories">
+    
+    [
+    <a href="/categories/#Windows">Windows</a>
+    &nbsp;
+    
+    <a href="/categories/#Security">Security</a>
+    
+    ]
+  </div>
+  <div id="toc"></div>
+  <div class="post-content e-content" itemprop="articleBody">
+    
+<p>This post shows a small Powershell script that I created to capture login events using WMI event subscription in Windows.
+Note that this method only applies to current Powershell session and is not persistent. 
+I also show more persistent method using Managed Object Format and WMI repository.</p>
+
+<h2 id="using-powershell-and-register-wmievent-cmdlet">Using Powershell and Register-WmiEvent cmdlet</h2>
+
+<p>Here’s a small script that I created to capture login events using WMI event subscription and Powershell.
+What the script does in practice:</p>
+
+<h3 id="script-content">Script content</h3>
+
+<ol>
+  <li>Specify query that returns <a href="https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/win32-logonsession">win32_LogOnSession</a> events</li>
+  <li>Use <code class="language-plaintext highlighter-rouge">Register-WmiEvent</code> to subscribe to these events</li>
+  <li>When <code class="language-plaintext highlighter-rouge">LogOnSession</code> event occurs:
+    <ol>
+      <li>Find related username based on the <code class="language-plaintext highlighter-rouge">LogonId</code> information that is returned in the event</li>
+      <li>Find SID of the username (tested only with non-ad machine/users)</li>
+    </ol>
+  </li>
+</ol>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Get win32_LogOnSession events</span><span class="w">
+</span><span class="nv">$query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Select TargetInstance From __InstanceCreationEvent WITHIN 10 WHERE TargetInstance ISA 'win32_LogOnSession'"</span><span class="w">
+</span><span class="c"># Subscripe to events based on the defined query</span><span class="w">
+</span><span class="n">Register-WmiEvent</span><span class="w"> </span><span class="nt">-SourceIdentifier</span><span class="w"> </span><span class="nx">LogonCapture</span><span class="w"> </span><span class="nt">-Query</span><span class="w"> </span><span class="nv">$query</span><span class="w"> </span><span class="nt">-Action</span><span class="w"> </span><span class="p">{</span><span class="w">
+            </span><span class="c"># Get logon type from the WMI event</span><span class="w">
+            </span><span class="bp">$this</span><span class="n">LogonType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$event</span><span class="o">.</span><span class="nf">SourceEventArgs</span><span class="o">.</span><span class="nf">NewEvent</span><span class="o">.</span><span class="nf">TargetInstance</span><span class="o">.</span><span class="nf">LogonType</span><span class="w">
+            </span><span class="c"># Get logonID from the WMI event</span><span class="w">
+            </span><span class="bp">$this</span><span class="n">LogonId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$event</span><span class="o">.</span><span class="nf">SourceEventArgs</span><span class="o">.</span><span class="nf">NewEvent</span><span class="o">.</span><span class="nf">TargetInstance</span><span class="o">.</span><span class="nf">LogonId</span><span class="w">
+            </span><span class="c"># Get logged on users</span><span class="w">
+            </span><span class="nv">$LoggedOnUsers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Get-WmiObject</span><span class="w"> </span><span class="nt">-Class</span><span class="w"> </span><span class="nx">win32_loggedonuser</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Select-Object</span><span class="w"> </span><span class="nx">Antecedent</span><span class="p">,</span><span class="nx">Dependent</span><span class="w">
+            </span><span class="c"># Loop over logged on users</span><span class="w">
+            </span><span class="kr">foreach</span><span class="w"> </span><span class="p">(</span><span class="nv">$userobj</span><span class="w"> </span><span class="kr">in</span><span class="w"> </span><span class="nv">$LoggedOnUsers</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+                </span><span class="c"># Parse logonID from the current item</span><span class="w">
+                </span><span class="nv">$LogonID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$userobj</span><span class="o">.</span><span class="nf">Dependent</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Select-String</span><span class="w"> </span><span class="nt">-Pattern</span><span class="w"> </span><span class="s1">'win32_LogonSession\.LogonId="(.*)"'</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="bp">$_</span><span class="o">.</span><span class="nf">matches</span><span class="o">.</span><span class="n">groups</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w">
+                </span><span class="c"># Check if the logonID matches with the ID of the WMI event</span><span class="w">
+                </span><span class="kr">if</span><span class="w"> </span><span class="p">(</span><span class="nv">$LogonID</span><span class="o">.</span><span class="nf">Value</span><span class="w"> </span><span class="o">-eq</span><span class="w"> </span><span class="bp">$this</span><span class="n">LogonId</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+                    </span><span class="c"># If logon IDs matched then extract associated username </span><span class="w">
+                    </span><span class="nv">$username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$userobj</span><span class="o">.</span><span class="nf">Antecedent</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Select-String</span><span class="w"> </span><span class="nt">-Pattern</span><span class="w"> </span><span class="s1">',Name="(.*)"'</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="bp">$_</span><span class="o">.</span><span class="nf">matches</span><span class="o">.</span><span class="n">groups</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w">
+                    </span><span class="c"># Get SID of the username</span><span class="w">
+                    </span><span class="nv">$userObjForSid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">New-Object</span><span class="w"> </span><span class="nx">System.Security.Principal.NTAccount</span><span class="p">(</span><span class="nv">$username</span><span class="o">.</span><span class="nf">Value</span><span class="p">)</span><span class="w">
+                    </span><span class="nv">$strSID</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$userObjForSid</span><span class="o">.</span><span class="nf">Translate</span><span class="p">([</span><span class="n">System.Security.Principal.SecurityIdentifier</span><span class="p">])</span><span class="w">
+                    </span><span class="c"># Write event details to console</span><span class="w">
+                    </span><span class="n">Write-Host</span><span class="w"> </span><span class="s2">"New LogOn event for user </span><span class="nv">$username</span><span class="s2"> (SID: </span><span class="nv">$strSID</span><span class="s2">) of type </span><span class="bp">$this</span><span class="s2">LogonType"</span><span class="w">
+                </span><span class="p">}</span><span class="w">
+            </span><span class="p">}</span><span class="w">
+               
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<h3 id="example-run">Example run</h3>
+
+<p>Below is an example where I have saved the script as “monitor_login.ps1” and launched it. The shown output is coming from the <code class="language-plaintext highlighter-rouge">Register-WmiEvent</code> command.</p>
+
+<p><img src="/assets/wmi_register.png" alt="" /></p>
+
+<p>After the event subscription was registered I logged in few times via RDP. The <code class="language-plaintext highlighter-rouge">New LogOn event for user...</code> texts are result from those logins.</p>
+
+<p><img src="/assets/wmi_capture_events.png" alt="" /></p>
+
+<p>You can find the below line from the script which constructs the output line.</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Write-Host</span><span class="w"> </span><span class="s2">"New LogOn event for user </span><span class="nv">$username</span><span class="s2"> (SID: </span><span class="nv">$strSID</span><span class="s2">) of type </span><span class="bp">$this</span><span class="s2">LogonType"</span><span class="w">
+</span></code></pre></div></div>
+
+<h2 id="using-managed-object-format-and-wmi-repository">Using Managed Object Format and WMI repository</h2>
+
+<p>Here is an example of how to add persistent WMI event subscription by using <a href="https://docs.microsoft.com/en-us/windows/win32/wmisdk/managed-object-format--mof-">Managed Object Format (MOF)</a> and <a href="https://docs.microsoft.com/en-us/windows/win32/wmisdk/mofcomp">Mofcomp</a> compiler.</p>
+
+<h3 id="add-subscriptions-to-wmi-repository-with-mof">Add subscriptions to WMI repository with MOF</h3>
+
+<p>Below is the MOF file I’m using. The basic idea is pretty simple. It defines a filter that captures <code class="language-plaintext highlighter-rouge">win32_LogOnSession</code> events and a consumer that writes output of <code class="language-plaintext highlighter-rouge">Get-WmiObject -Class win32_loggedonuser</code> to file <code class="language-plaintext highlighter-rouge">C:\users_&lt;MM-dd-yyyy-HH-mm&gt;.json</code>.</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">//</span><span class="w"> </span><span class="nx">Set</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">namespace</span><span class="w"> </span><span class="nx">as</span><span class="w"> </span><span class="nx">root\subscription.</span><span class="w">
+</span><span class="n">//</span><span class="w"> </span><span class="nx">The</span><span class="w"> </span><span class="nx">CommandLineEventConsumer</span><span class="w"> </span><span class="nx">is</span><span class="w"> </span><span class="nx">already</span><span class="w"> </span><span class="nx">compiled</span><span class="w">
+</span><span class="n">//</span><span class="w"> </span><span class="nx">in</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">root\subscription</span><span class="w"> </span><span class="nx">namespace.</span><span class="w"> 
+</span><span class="c">#pragma namespace ("\\\\.\\Root\\subscription")</span><span class="w">
+
+</span><span class="n">//</span><span class="w"> </span><span class="nx">Create</span><span class="w"> </span><span class="nx">an</span><span class="w"> </span><span class="nx">instance</span><span class="w"> </span><span class="nx">of</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">command</span><span class="w"> </span><span class="nx">line</span><span class="w"> </span><span class="nx">consumer</span><span class="w">
+</span><span class="n">//</span><span class="w"> </span><span class="nx">and</span><span class="w"> </span><span class="nx">give</span><span class="w"> </span><span class="nx">it</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">alias</span><span class="w"> </span><span class="nv">$CMDLINECONSUMER</span><span class="w">
+
+</span><span class="n">instance</span><span class="w"> </span><span class="nx">of</span><span class="w"> </span><span class="nx">CommandLineEventConsumer</span><span class="w"> </span><span class="nx">as</span><span class="w"> </span><span class="nv">$CMDLINECONSUMER</span><span class="w">
+</span><span class="p">{</span><span class="w">
+ </span><span class="n">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"CmdLineConsumer_Example"</span><span class="p">;</span><span class="w">
+ </span><span class="n">CommandLineTemplate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"powershell -Command \"</span><span class="n">Get-WmiObject</span><span class="w"> </span><span class="nt">-Class</span><span class="w"> </span><span class="nx">win32_loggedonuser</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">ConvertTo-Json</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Out-File</span><span class="w"> </span><span class="nx">C:\\users_</span><span class="err">$</span><span class="p">(</span><span class="n">Get-Date</span><span class="w"> </span><span class="nt">-Format</span><span class="w"> </span><span class="s1">'MM-dd-yyyy-HH-mm'</span><span class="p">)</span><span class="o">.</span><span class="nf">json</span><span class="n">\</span><span class="s2">""</span><span class="p">;</span><span class="w">
+ </span><span class="n">RunInteractively</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">False</span><span class="p">;</span><span class="w">
+</span><span class="p">};</span><span class="w">    
+
+</span><span class="n">//</span><span class="w"> </span><span class="nx">Create</span><span class="w"> </span><span class="nx">an</span><span class="w"> </span><span class="nx">instance</span><span class="w"> </span><span class="nx">of</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">event</span><span class="w"> </span><span class="nx">filter</span><span class="w">
+</span><span class="n">//</span><span class="w"> </span><span class="nx">and</span><span class="w"> </span><span class="nx">give</span><span class="w"> </span><span class="nx">it</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">alias</span><span class="w"> </span><span class="nv">$CMDLINEFILTER</span><span class="w">
+</span><span class="n">//</span><span class="w"> </span><span class="nx">The</span><span class="w"> </span><span class="nx">filter</span><span class="w"> </span><span class="nx">queries</span><span class="w"> </span><span class="nx">for</span><span class="w"> </span><span class="nx">instance</span><span class="w"> </span><span class="nx">creation</span><span class="w"> </span><span class="nx">event</span><span class="w">
+</span><span class="n">//</span><span class="w"> </span><span class="nx">for</span><span class="w"> </span><span class="nx">instances</span><span class="w"> </span><span class="nx">of</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">MyCmdLineConsumer</span><span class="w"> </span><span class="nx">class</span><span class="w">
+
+</span><span class="n">instance</span><span class="w"> </span><span class="nx">of</span><span class="w"> </span><span class="nx">__EventFilter</span><span class="w"> </span><span class="nx">as</span><span class="w"> </span><span class="nv">$CMDLINEFILTER</span><span class="w">
+</span><span class="p">{</span><span class="w">
+    </span><span class="n">Name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"CmdLineFilter"</span><span class="p">;</span><span class="w">
+    </span><span class="n">EventNameSpace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"root\\cimv2"</span><span class="p">;</span><span class="w">
+    </span><span class="n">Query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Select TargetInstance From __InstanceCreationEvent WITHIN 10 WHERE TargetInstance ISA 'win32_LogOnSession'"</span><span class="p">;</span><span class="w">
+    </span><span class="n">QueryLanguage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"WQL"</span><span class="p">;</span><span class="w">
+</span><span class="p">};</span><span class="w">
+
+</span><span class="n">//</span><span class="w"> </span><span class="nx">Create</span><span class="w"> </span><span class="nx">an</span><span class="w"> </span><span class="nx">instance</span><span class="w"> </span><span class="nx">of</span><span class="w"> </span><span class="nx">the</span><span class="w"> </span><span class="nx">binding</span><span class="w">
+</span><span class="n">//</span><span class="w"> </span><span class="nx">between</span><span class="w"> </span><span class="nx">filter</span><span class="w"> </span><span class="nx">and</span><span class="w"> </span><span class="nx">consumer</span><span class="w"> </span><span class="nx">instances.</span><span class="w">
+
+</span><span class="n">instance</span><span class="w"> </span><span class="nx">of</span><span class="w"> </span><span class="nx">__FilterToConsumerBinding</span><span class="w">
+</span><span class="p">{</span><span class="w">
+     </span><span class="n">Consumer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$CMDLINECONSUMER</span><span class="p">;</span><span class="w">
+     </span><span class="kr">Filter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nv">$CMDLINEFILTER</span><span class="p">;</span><span class="w">
+</span><span class="p">};</span><span class="w">
+</span></code></pre></div></div>
+
+<p>Next, I save the file as <code class="language-plaintext highlighter-rouge">test.mof</code> and compile it, so it’s added to the WMI repository.</p>
+
+<p><img src="/assets/wmi_mofcomp.png" alt="" /></p>
+
+<h3 id="explore-wmi-repository">Explore WMI repository</h3>
+
+<p>One option to view the WMI repository is to use <a href="https://github.com/vinaypamnani/wmie2/release">WMI explorer</a>. Here’s how the created filter and consumer can be observed in the app:</p>
+
+<p><img src="/assets/wmi_explorer_filter.png" alt="" /></p>
+
+<p><img src="/assets/wmi_explorer_consumer.png" alt="" /></p>
+
+  </div><a class="u-url" href="/2020/11/29/monitor-login-events-wmi.html" hidden></a>
+</article>
+
+<!-- TOC -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="/js/toc.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    $('#toc').toc();
+});
+</script>
+
+
+<!-- mermaid -->
+<script>
+var config = {
+    startOnLoad:true,
+    theme: 'forest',
+    flowchart:{
+            useMaxWidth:false,
+            htmlLabels:true
+        }
+};
+mermaid.initialize(config);
+window.mermaid.init(undefined, document.querySelectorAll('.language-mermaid'));
+</script>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col">
+        <p class="feed-subscribe">
+          <a href="/feed.xml">
+            <svg class="svg-icon orange">
+              <use xlink:href="/assets/minima-social-icons.svg#rss"></use>
+            </svg><span>Subscribe</span>
+          </a>
+        </p>
+        <ul class="contact-list">
+          <li class="p-name">mtask</li>
+          <li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li><li><a href="/files/publickey.mtask.gh@protonmail.com.asc">8949b98a4e63585fe3bf6a953b9fd3e9ad04482e (gpg)</a></li></ul>
+      </div>
+      <div class="footer-col">
+        <p>cybersecurity, homelab tinkering, etc.</p>
+      </div>
+    </div>
+
+    <div class="social-links"><ul class="social-media-list"><li><a rel="me" href="https://github.com/mtask" title="mtask"><svg class="svg-icon grey"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg></a></li></ul>
+</div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

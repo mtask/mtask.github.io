@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Encrypting an external HDD with LUKS | Blog</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="Encrypting an external HDD with LUKS" />
+<meta name="author" content="mtask" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="cybersecurity, homelab tinkering, etc." />
+<meta property="og:description" content="cybersecurity, homelab tinkering, etc." />
+<link rel="canonical" href="http://localhost:4000/2020/07/01/luks-encrypt-external-hdd.html" />
+<meta property="og:url" content="http://localhost:4000/2020/07/01/luks-encrypt-external-hdd.html" />
+<meta property="og:site_name" content="Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-07-01T00:00:00+03:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Encrypting an external HDD with LUKS" />
+<script type="application/ld+json">
+{"@type":"BlogPosting","headline":"Encrypting an external HDD with LUKS","dateModified":"2020-07-01T00:00:00+03:00","datePublished":"2020-07-01T00:00:00+03:00","url":"http://localhost:4000/2020/07/01/luks-encrypt-external-hdd.html","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2020/07/01/luks-encrypt-external-hdd.html"},"author":{"@type":"Person","name":"mtask"},"description":"cybersecurity, homelab tinkering, etc.","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Blog" />
+</head>
+<body><header class="site-header">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/">/posts</a><a class="page-link" href="/whoami/">/whoami</a><a class="page-link" href="/categories/">/categories</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Encrypting an external HDD with LUKS</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-07-01T00:00:00+03:00" itemprop="datePublished">Jul 1, 2020
+      </time></p>
+   </header>
+  <div class="post-categories">
+    
+    [
+    <a href="/categories/#Security">Security</a>
+    
+    ]
+  </div>
+  <div id="toc"></div>
+  <div class="post-content e-content" itemprop="articleBody">
+    
+<p>A quick post to show how to encrypt an external hard drive using <em>Linux Unified Key Setup (LUKS)</em>.</p>
+
+<p>With “external” I mean a drive that doesn’t include Operating System related partitions. 
+It can be a portable one or an extra drive in your computer.</p>
+
+<p>If you are looking for a solution with multi-platform support, then I would highly recommend checking the <a href="[https://www.veracrypt.fr/en/Introduction.html">VeraCrypt</a> project.</p>
+
+<h1 id="what-is-luks">What is LUKS?</h1>
+
+<blockquote>
+  <p>The Linux Unified Key Setup (LUKS) is a disk encryption specification created by Clemens Fruhwirth in 2004 and was originally intended for Linux.</p>
+
+  <p>While most disk encryption software implements different, incompatible, and undocumented formats, LUKS implements a platform-independent standard on-disk format for use in various tools. This not only facilitates compatibility and interoperability among different programs, but also assures that they all implement password management in a secure and documented manner.</p>
+
+  <p>The reference implementation for LUKS operates on Linux and is based on an enhanced version of cryptsetup, using dm-crypt as the disk encryption backend. Under Microsoft Windows, LUKS-encrypted disks can be used with the now defunct FreeOTFE (formerly DoxBox, LibreCrypt).</p>
+
+  <p>– https://en.wikipedia.org/wiki/Linux_Unified_Key_Setup</p>
+</blockquote>
+
+<h1 id="creating-a-partition">Creating a partition</h1>
+
+<p>When I say that I will encrypt the disk I’m, of course, actually encrypting a partition on the disk. I will just create a one partition that will use the whole disk space.</p>
+
+<p>I’m using a portable external HDD which is showing up as <code class="language-plaintext highlighter-rouge">/dev/sdb</code> in my system.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo fdisk -l /dev/sdb1 
+Disk /dev/sdb1: 931,49 GiB, 1000169537536 bytes, 1953456128 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x00000000
+</code></pre></div></div>
+
+<p>I will use the <code class="language-plaintext highlighter-rouge">parted</code>tool to create the partition.</p>
+
+<ul>
+  <li>Opening the drive with <code class="language-plaintext highlighter-rouge">parted</code>:</li>
+</ul>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo parted /dev/sdb
+</code></pre></div></div>
+
+<ul>
+  <li>Creating a new partition table:</li>
+</ul>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(parted) mklabel msdos
+</code></pre></div></div>
+
+<ul>
+  <li>Creating a new partition:</li>
+</ul>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(parted) mkpart primary
+File system type?  [ext2]? ext4                                           
+Start? 0                                                                  
+End? 1000171                                                              
+Warning: The resulting partition is not properly aligned for best performance: 1s % 2048s != 0s
+Ignore/Cancel? Ignore                                                     
+</code></pre></div></div>
+
+<p>Parted command <code class="language-plaintext highlighter-rouge">unit MB print free</code> can be used to check the END value for the partition when the whole disk space is being used.</p>
+
+<ul>
+  <li>Let’s check the result and exit from parted:</li>
+</ul>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(parted) print                                                            
+Model: WD (scsi)
+Disk /dev/sdb: 1000171MB
+Sector size (logical/physical): 512B/512B
+Partition Table: msdos
+Disk Flags: 
+
+Number  Start   End        Size       Type     File system  Flags
+ 1      0,00MB  1000171MB  1000171MB  primary  ext4         lba
+
+(parted) quit
+</code></pre></div></div>
+
+<h1 id="encrypting-the-new-partition">Encrypting the new partition</h1>
+
+<p>The command to encrypt a partition is <code class="language-plaintext highlighter-rouge">cryptsetup luksFormat /dev/&lt;partition&gt;</code>. Now I just apply this against the <code class="language-plaintext highlighter-rouge">/dev/sdb1</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo cryptsetup luksFormat /dev/sdb1
+
+WARNING!
+========
+This will overwrite data on /dev/sdb1 irrevocably.
+
+Are you sure? (Type uppercase yes): YES
+Enter passphrase for /dev/sdb1: 
+Verify passphrase: 
+$
+</code></pre></div></div>
+
+<h1 id="create-a-filesystem-on-the-encrypted-partition">Create a filesystem on the encrypted partition</h1>
+
+<p>The encrypted partition needs to be opened using <code class="language-plaintext highlighter-rouge">cryptsetup luksOpen /dev/&lt;partition</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo cryptsetup luksOpen /dev/sdb1 encrypted-external-drive
+Enter passphrase for /dev/sdb1: 
+$
+</code></pre></div></div>
+
+<p>Now, to create the filesystem I can regularly use <code class="language-plaintext highlighter-rouge">mkfs.ext4</code>. But, instead of using it against <code class="language-plaintext highlighter-rouge">/dev/sdb1</code>, I need to use <code class="language-plaintext highlighter-rouge">/dev/mapper/encrypted-external-drive</code> which was specified during the <code class="language-plaintext highlighter-rouge">luksOpen</code> command.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo mkfs.ext4 /dev/mapper/encrypted-external-drive
+mke2fs 1.45.5 (07-Jan-2020)
+Creating filesystem with 244178175 4k blocks and 61046784 inodes
+Filesystem UUID: b1sc17f2-e2e5-4baa-ba87-60a507bdd0b1
+Superblock backups stored on blocks: 
+    32768, 98304, 163840, 229376, 294912, 819200, 884736, 1605632, 2654208, 
+    4096000, 7962624, 11239424, 20480000, 23887872, 71663616, 78675968, 
+    102400000, 214990848
+
+Allocating group tables: done                            
+Writing inode tables: done                            
+Creating journal (262144 blocks): done
+Writing superblocks and filesystem accounting information: done     
+
+$
+</code></pre></div></div>
+
+<p>To close the partition I will use <code class="language-plaintext highlighter-rouge">cryptsetup luksClose</code> command:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo cryptsetup luksClose /dev/mapper/encrypted-external-drive
+$
+</code></pre></div></div>
+
+<h1 id="mounting-the-encrypted-partition">Mounting the encrypted partition</h1>
+
+<p>First, once again, the LUKS partition needs to be opened using <code class="language-plaintext highlighter-rouge">cryptsetup luksOpen</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo cryptsetup luksOpen /dev/sdb1 encrypted-external-drive
+Enter passphrase for /dev/sdb1:
+$
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">/dev/mapper/&lt;name I specified in luksOpen command&gt;</code> can be now mounted like an any regular partition:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo mount /dev/mapper/encrypted-external-drive /mnt/
+$ mount | grep 'encrypted-external'
+/dev/mapper/encrypted-external-drive on /mnt type ext4 (rw,relatime)
+$
+</code></pre></div></div>
+
+<p>Then, just a quick test to verify that files can be stored as expected:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo touch /mnt/test.txt
+$ sudo umount /mnt 
+$ sudo cryptsetup luksClose /dev/mapper/encrypted-external-drive
+$ sudo cryptsetup luksOpen /dev/sdb1 encrypted-external-drive
+Enter passphrase for /dev/sdb1: 
+$ sudo mount /dev/mapper/encrypted-external-drive /mnt/
+$ ls -la /mnt/
+total 24
+drwxr-xr-x  3 root root  4096 heinä   1 11:43 .
+drwxr-xr-x 20 root root  4096 kesä   30 14:00 ..
+drwx------  2 root root 16384 heinä   1 11:34 lost+found
+-rw-r--r--  1 root root     0 heinä   1 11:43 test.txt
+$
+</code></pre></div></div>
+
+  </div><a class="u-url" href="/2020/07/01/luks-encrypt-external-hdd.html" hidden></a>
+</article>
+
+<!-- TOC -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="/js/toc.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    $('#toc').toc();
+});
+</script>
+
+
+<!-- mermaid -->
+<script>
+var config = {
+    startOnLoad:true,
+    theme: 'forest',
+    flowchart:{
+            useMaxWidth:false,
+            htmlLabels:true
+        }
+};
+mermaid.initialize(config);
+window.mermaid.init(undefined, document.querySelectorAll('.language-mermaid'));
+</script>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col">
+        <p class="feed-subscribe">
+          <a href="/feed.xml">
+            <svg class="svg-icon orange">
+              <use xlink:href="/assets/minima-social-icons.svg#rss"></use>
+            </svg><span>Subscribe</span>
+          </a>
+        </p>
+        <ul class="contact-list">
+          <li class="p-name">mtask</li>
+          <li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li><li><a href="/files/publickey.mtask.gh@protonmail.com.asc">8949b98a4e63585fe3bf6a953b9fd3e9ad04482e (gpg)</a></li></ul>
+      </div>
+      <div class="footer-col">
+        <p>cybersecurity, homelab tinkering, etc.</p>
+      </div>
+    </div>
+
+    <div class="social-links"><ul class="social-media-list"><li><a rel="me" href="https://github.com/mtask" title="mtask"><svg class="svg-icon grey"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg></a></li></ul>
+</div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

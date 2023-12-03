@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Centralized log collection and monitoring | Blog</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="Centralized log collection and monitoring" />
+<meta name="author" content="mtask" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="cybersecurity, homelab tinkering, etc." />
+<meta property="og:description" content="cybersecurity, homelab tinkering, etc." />
+<link rel="canonical" href="http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html" />
+<meta property="og:url" content="http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html" />
+<meta property="og:site_name" content="Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-01-03T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Centralized log collection and monitoring" />
+<script type="application/ld+json">
+{"@type":"BlogPosting","headline":"Centralized log collection and monitoring","dateModified":"2021-01-03T00:00:00+02:00","datePublished":"2021-01-03T00:00:00+02:00","url":"http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html","mainEntityOfPage":{"@type":"WebPage","@id":"http://localhost:4000/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html"},"author":{"@type":"Person","name":"mtask"},"description":"cybersecurity, homelab tinkering, etc.","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="http://localhost:4000/feed.xml" title="Blog" />
+</head>
+<body><header class="site-header">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/">/posts</a><a class="page-link" href="/whoami/">/whoami</a><a class="page-link" href="/categories/">/categories</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Centralized log collection and monitoring</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-01-03T00:00:00+02:00" itemprop="datePublished">Jan 3, 2021
+      </time></p>
+   </header>
+  <div class="post-categories">
+    
+    [
+    <a href="/categories/#Security">Security</a>
+    &nbsp;
+    
+    <a href="/categories/#Homelab">Homelab</a>
+    
+    ]
+  </div>
+  <div id="toc"></div>
+  <div class="post-content e-content" itemprop="articleBody">
+    
+<p>From time to time, I get inspiration to tinker with monitoring my home network. Sometimes I want to test some new features in an existing solution or some new technology. Usually, it ends with some corporate-level setup that is nice for a while, but eventually, I don’t have time or interest to manage all that in my free time. Recently I have tried to implement an approach that is a bit better suited for home lab tinkering. This post is not a detailed step-by-step guide to do what I do, but more like an overview of my setup.</p>
+
+<p>The environment that I’m monitoring looks somewhats like this:</p>
+
+<p><img src="/assets/monitorhome2.png" alt="" /></p>
+
+<p>I can collect logs from the firewall, homelab servers, other desktops/laptops than work-related ones, and from a few other devices. If some smart TV offers some logging, then sure, but usually no.</p>
+
+<p>The firewall is one quite obvious item to monitor closely. Servers in the homelab network are not such a high-level target. Yes, I want to monitor those for SSH logins and such. However, when someone takes SSH or other connections there, things have already gone pretty south as there are no services exposed to the internet and only limited exposure to other VLANs.</p>
+
+<p>With the home office network, I can only do network-level monitoring, but devices in that network should anyways be in Zero Trust level and monitored by someone else.</p>
+
+<p><img src="/assets/monitorhome3.png" alt="" /></p>
+
+<h2 id="architecture">Architecture</h2>
+
+<p>The main building blocks are the following..</p>
+
+<ul>
+  <li><a href="https://www.rsyslog.com/">Rsyslog</a>: event forwarding in log sources</li>
+  <li><a href="https://www.elastic.co/logstash">Logstash</a>: centralized log server</li>
+  <li><a href="https://simple-evcorr.github.io/"><strong>Simple Event Correlator (SEC)</strong></a>: event correlation.</li>
+  <li><a href="https://alerta.io/"><strong>Alerta</strong></a>: monitoring</li>
+</ul>
+
+<p>.. and the overall architecture will be something like this:</p>
+
+<p><img src="/assets/monitorhome1.png" alt="" /></p>
+
+<h2 id="deployment">Deployment</h2>
+
+<p>I will show an overview of the deployment and will briefly explain the configurations I have.</p>
+
+<h3 id="logstash-syslog-server">Logstash (Syslog server)</h3>
+
+<ul>
+  <li>Logstash installation: <a href="https://www.elastic.co/guide/en/logstash/current/installing-logstash.html">https://www.elastic.co/guide/en/logstash/current/installing-logstash.html</a></li>
+  <li>Configuration:
+    <ul>
+      <li>I’m going with a very minimal setup without any changes in <code class="language-plaintext highlighter-rouge">/etc/logstash/logstash.yml</code>.</li>
+      <li>In <code class="language-plaintext highlighter-rouge">/etc/logstash/jvm.options</code> I have set memory options <code class="language-plaintext highlighter-rouge">-Xms1g</code> and <code class="language-plaintext highlighter-rouge">-Xmx3g</code>, so the initial heap size is 1GB and maximum is 3GB.</li>
+    </ul>
+  </li>
+</ul>
+
+<p>The basic Logstash deployment concept includes one or more <em>inputs</em> to receive some log events, usually <em>filters</em> to parse those events and <em>outputs</em> to send or write the filtered events somewhere.</p>
+
+<p>These configurations can be split into multiple files and eventually can be more structured with <em>pipelines</em>. I’m using a simple setup where <em>input</em>, <em>filter</em>, and <em>output</em> are in a single file.</p>
+
+<ul>
+  <li>Content of <code class="language-plaintext highlighter-rouge">/etc/logstash/conf.d/logstash-syslog.conf</code>:</li>
+</ul>
+
+<p>The input section specifies TCP and UDP listeners for syslog data.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>input {
+  tcp {
+    port =&gt; 51444
+    type =&gt; syslog
+    tags =&gt; ['syslog']
+  }
+  udp {
+    port =&gt; 51444
+    type =&gt; syslog
+    tags =&gt; ['syslog']
+  }
+}
+</code></pre></div></div>
+
+<p>The filtering section does some content parsing, but almost all is for potential future use. The only one used now is the “syslog_program” field that I use in the output section.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  
+filter {
+  if [type] == "syslog" {
+    grok {
+      match =&gt; {
+         "message" =&gt; [ "%{SYSLOGTIMESTAMP:syslog_timestamp} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: \[%{DATA}\] %{DATA:snort_event} \[Classification: %{DATA:snort_classification}\] \[Priority: %{NUMBER:snort_priority}\] \{%{DATA:snort_protocol}\} %{IP:snort_src_ip}:%{POSINT:snort_src_port} -&gt; %{IP:snort_dest}:%{POSINT:snort_dest_port}",
+         "%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: /usr/bin/rsnapshot( -v)? %{DATA:rsnapshot_event}: %{GREEDYDATA:rsnapshot_output}",
+         "%{SYSLOGTIMESTAMP:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}",
+         "%{TIMESTAMP_ISO8601:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}",
+         "%{SYSLOGTIMESTAMP:syslog_timestamp} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}"]
+      }
+      add_field =&gt; [ "received_at", "%{@timestamp}" ]
+      add_field =&gt; [ "received_from", "%{host}" ]
+    }
+  }
+  if [rsnapshot_event]{
+      mutate {
+         add_tag =&gt; [ "rsnapshot" ]
+       }
+  }
+  if [snort_event]{
+      mutate {
+         add_tag =&gt; [ "snort" ]
+       }
+  }
+}
+
+</code></pre></div></div>
+
+<p>The output section, in this case, specifies the output file. The previously mentioned <code class="language-plaintext highlighter-rouge">syslog_program</code> variable and the <code class="language-plaintext highlighter-rouge">host</code> variable will construct the output log file.</p>
+
+<p>You may notice that <code class="language-plaintext highlighter-rouge">if</code> statements in <code class="language-plaintext highlighter-rouge">output</code> and <code class="language-plaintext highlighter-rouge">filter</code> sections are pretty useless as I only have one input that sets the <code class="language-plaintext highlighter-rouge">syslog</code> tag. Those <code class="language-plaintext highlighter-rouge">if</code> statements are mostly specified because of habit to do this when Logstash configuration is far more complex, but also it gives a sort of pre-defined structure in a case I want to expand the configuration with some other tag based filtering or outputs.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>output {
+  if "syslog" in [tags] {
+      file {
+         path =&gt; "/srv/logstash/%{host}-%{syslog_program}.log"
+      }
+  }
+}
+</code></pre></div></div>
+
+<p>Note that the directory path in <code class="language-plaintext highlighter-rouge">path =&gt;</code> needs to exist beforehand and it needs to have permissions which allows the <code class="language-plaintext highlighter-rouge">logstash</code> service user to create files into it. For example: <code class="language-plaintext highlighter-rouge">sudo mkdir /srv/logstash/ &amp;&amp; sudo chown logstash /srv/logstash/ &amp;&amp; sudo chmod 750 /srv/logstash/</code>.</p>
+
+<h3 id="log-sources">Log sources</h3>
+
+<p>Log sources will have just a basic rsyslog forwarding setup. In case you are more familiar with ELK stack installations, you may be wondering why I’m not using beats agents. For now,  I want this setup to work even if I would have just a regular rsyslog server that replaces Logstash. Logstash is currently only providing an easy possibility to expand the installation if I feel like I have a reason and time to do that at some point.</p>
+
+<p>In rsyslog configurations of log sources I have basically just added a line <code class="language-plaintext highlighter-rouge">*.*  @@&lt;logstash server&gt;:51444</code> to <code class="language-plaintext highlighter-rouge">/etc/rsyslog.conf</code>. This forwards everything to Logstash using TCP.</p>
+
+<h3 id="alerta">Alerta</h3>
+
+<ul>
+  <li>Alerta installation: <a href="https://docs.alerta.io/en/latest/quick-start.html">https://docs.alerta.io/en/latest/quick-start.html</a></li>
+</ul>
+
+<p>I’m running Alerta behind Nginx (Nginx -&gt; uwsgi -&gt; Alerta). You can find full deployment tutorial <a href="https://docs.alerta.io/en/latest/gettingstarted/tutorial-1-deploy-alerta.html">here</a>.</p>
+
+<p>Here’s my location configuration for the Nginx site:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>        location /api { try_files $uri @api; }
+        location @api {
+            include uwsgi_params;
+            uwsgi_pass unix:/run/uwsgi/uwsgi.sock;
+            proxy_set_header Host $host:$server_port;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        location / {
+                root /var/www/html;
+                try_files $uri $uri/ /index.html;
+        }
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">uwsgi.ini</code> configuration:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[uwsgi]
+chdir = /var/www
+mount = /api=wsgi.py
+callable = app
+manage-script-name = true
+env = BASE_URL=/api
+
+master = true
+processes = 5
+logger = syslog:alertad
+
+socket = /run/uwsgi/uwsgi.sock
+chmod-socket = 664
+uid = www-data
+gid = www-data
+vacuum = true
+
+die-on-term = true
+</code></pre></div></div>
+
+<p>Content of <code class="language-plaintext highlighter-rouge">wsgi.py</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>from alerta import create_app
+app = create_app()
+</code></pre></div></div>
+
+<p>Systemd service that is running the uwsgi service looks like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Unit]
+Description=uWSGI service
+
+[Service]
+ExecStartPre=/bin/bash -c 'mkdir -p /run/uwsgi; chown www-data:www-data /run/uwsgi'
+ExecStart=/usr/local/bin/uwsgi --ini /etc/uwsgi.ini
+
+[Install]
+WantedBy=multi-user.target
+</code></pre></div></div>
+
+<p>The documentation for Alerta server configuration can be found here: <a href="https://docs.alerta.io/en/latest/configuration.html">https://docs.alerta.io/en/latest/configuration.html</a>.</p>
+
+<h3 id="simple-event-correlator">Simple Event Correlator</h3>
+
+<blockquote>
+  <p>SEC is an event correlation tool for advanced event processing which can be harnessed for event log monitoring, for network and security management, for fraud detection, and for any other task which involves event correlation.<br />
+– https://simple-evcorr.github.io/</p>
+</blockquote>
+
+<p>I’m using quite simple SEC rules to catch some patterns and do actions based on them. SEC can, however, do far more powerful event correlation. See its <a href="https://simple-evcorr.github.io/man.html">man page</a> for more information.</p>
+
+<h4 id="usage-example">Usage example</h4>
+
+<p>Here’s a really simple SEC usage example:</p>
+
+<ol>
+  <li>Create a file <code class="language-plaintext highlighter-rouge">/tmp/rules.conf</code> with the following content:
+    <div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="py">type</span><span class="p">=</span><span class="s">SingleWithThreshold</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">^Hello from (.*)$</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">Listen for triple hello inside 5 seconds</span>
+<span class="py">action</span><span class="p">=</span><span class="s">write - Triple hello! First one was $1</span>
+<span class="py">window</span><span class="p">=</span><span class="s">5</span>
+<span class="py">thresh</span><span class="p">=</span><span class="s">3</span>
+</code></pre></div>    </div>
+    <p>The action is launched when three events matching the pattern appear inside 5 seconds.</p>
+  </li>
+  <li>Launch SEC: <code class="language-plaintext highlighter-rouge">/opt/sec/sec --conf /tmp/rules.conf --input=/tmp/input.txt --reopen-timeout=5</code></li>
+  <li>Launch command <code class="language-plaintext highlighter-rouge">for i in $(seq 1 3);do echo Hello from console$i;done &gt;&gt; /tmp/input.txt</code> in a different terminal</li>
+  <li>You should see this in SEC’s output:
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Triple hello! First one was console1
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>SEC’s man page has a bit more practical example which would monitor for failed SSH attempts. In this example you can also see more practical action:</p>
+
+<div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="py">type</span><span class="p">=</span><span class="s">SingleWithThreshold</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">sshd</span><span class="se">\[\d</span><span class="s">+</span><span class="se">\]</span><span class="s">: Failed .+ for (</span><span class="se">\S</span><span class="s">+) from [</span><span class="se">\d</span><span class="s">.]+ port </span><span class="se">\d</span><span class="s">+ ssh2</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">Three SSH login failures within 1m for user $1</span>
+<span class="py">action</span><span class="p">=</span><span class="s">pipe '%s' /bin/mail -s 'SSH login alert' root@localhost</span>
+<span class="py">window</span><span class="p">=</span><span class="s">60</span>
+<span class="py">thresh</span><span class="p">=</span><span class="s">3 </span>
+</code></pre></div></div>
+
+<h4 id="dynamic-input-files">Dynamic input files</h4>
+
+<p>In the previous usage example the input file was specified directly as a command line parameter. This is fine when you know and can specify all the files that should be monitored, but this wasn’t quite enough for my use-case.</p>
+
+<p>The issue I had was that I wanted new hosts to be automatically monitored without manually updating SEC’s input files. Now, as my Logstash configuration creates files <code class="language-plaintext highlighter-rouge">%{host}-%{syslog_program}.log</code> I would need to know host-names that my future machines may have, or I would need to update input files for SEC when I add new hosts. Note that specifying something like <code class="language-plaintext highlighter-rouge">--input=/srv/logstash/*-sshd.log</code> does shell expansion and it will only include files that already exist, so it doesn’t help even with SEC’s reloading options.</p>
+
+<p>The question 24 in SEC’s <a href="https://simple-evcorr.github.io/FAQ.html#24">FAQ</a> gave me a starting point to solve this. It shows how to handle timestamps in filenames, but I can leverage the same solution.</p>
+
+<p>Below are sections from my SEC rules that provide this solution.
+The first section of the configuration launches an external script <code class="language-plaintext highlighter-rouge">logtracker.py</code> when SEC is started. The script takes log file patterns as an input and string “WILD” presents wildcard (<code class="language-plaintext highlighter-rouge">*</code>) character in the patterns.</p>
+
+<div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">^(?:SEC_STARTUP|SEC_RESTART)$</span>
+<span class="py">context</span><span class="p">=</span><span class="s">SEC_INTERNAL_EVENT</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">start log file tracker</span>
+<span class="py">action</span><span class="p">=</span><span class="s">cspawn LOGTRACKER /usr/local/bin/logtracker.py /srv/logstash/WILDsshd.log /srv/logstash/WILDsudo.log</span>
+
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">^Open file (.+) (0|-)$</span>
+<span class="py">context</span><span class="p">=</span><span class="s">LOGTRACKER</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">open logfile $1 and start reading from offset $2</span>
+<span class="py">action</span><span class="p">=</span><span class="s">addinput $1 $2</span>
+</code></pre></div></div>
+
+<p>What this does is that the script will take those patterns and constantly keeps checking for new log files (1st rule) and returns found file paths back to the SEC which will then add those to input files (2nd rule).</p>
+
+<p>This is the source of the <code class="language-plaintext highlighter-rouge">logtracker.py</code> script:</p>
+
+<div class="language-py highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/python3
+</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="n">files</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+    <span class="n">files</span> <span class="o">+=</span> <span class="n">glob</span><span class="p">.</span><span class="n">glob</span><span class="p">(</span><span class="n">arg</span><span class="p">.</span><span class="n">replace</span><span class="p">(</span><span class="s">'WILD'</span><span class="p">,</span> <span class="s">'*'</span><span class="p">))</span>
+<span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">"Open file {} -"</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="n">flush</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="n">files2</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">sys</span><span class="p">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+            <span class="n">files2</span> <span class="o">+=</span> <span class="n">glob</span><span class="p">.</span><span class="n">glob</span><span class="p">(</span><span class="n">arg</span><span class="p">.</span><span class="n">replace</span><span class="p">(</span><span class="s">'WILD'</span><span class="p">,</span> <span class="s">'*'</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files2</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">f</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+                <span class="k">print</span><span class="p">(</span><span class="s">"Open file {} 0"</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="n">flush</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                <span class="n">files</span><span class="p">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="n">time</span><span class="p">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="k">except</span> <span class="nb">KeyboardInterrupt</span><span class="p">:</span>
+    <span class="n">sys</span><span class="p">.</span><span class="nb">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>Now I can add new hosts, configure rsyslog forwarding, and SEC will automatically pick-up log files of those hosts as well.</p>
+
+<h4 id="sec-ruleset">SEC ruleset</h4>
+
+<p>The below diagrams show two basic flows that I try to achieve with my SEC ruleset.</p>
+
+<p>The first flow includes direct alerts that SEC creates based on matching rules.</p>
+
+<pre><code class="language-mermaid">sequenceDiagram
+    Title: Direct Alerta alerts
+    participant logs;
+    participant SEC;
+    participant Alerta;
+    participant email;
+    SEC-&gt;&gt;logs: read log events
+    SEC-&gt;&gt;SEC: rule match
+    SEC-&gt;&gt;Alerta: info, warn, or critical events
+    Alerta-&gt;&gt;Alerta: Alerta handles de-duplication
+    SEC-&gt;&gt;email: critical or otherwise rare events
+</code></pre>
+
+<p>The second flow SEC sends Alerta hearbeat messages when a certain rule matches.  The heartbeats will not cause an alert as long as a new heartbeat is sent before the specified timeout.</p>
+
+<pre><code class="language-mermaid">sequenceDiagram 
+    Title: Alerta heartbeat alerts
+    participant logs;
+    participant SEC;
+    participant Alerta;
+    SEC-&gt;&gt;logs: read log events
+    SEC-&gt;&gt;SEC: rule with heartbeat action matches
+    SEC-&gt;&gt;Alerta: send heartbeat to Alerta with timeout
+    Alerta-&gt;&gt;Alerta: check heartbeats
+    Alerta--&gt;&gt;Alerta: create alert if a heartbeat has timed out
+</code></pre>
+
+<p>I try to keep the number of email alerts as low as possible because it quickly turns into a noise that one just ignores. Some rules may not seem like it, for example, emailing due to a successful or failed login in Pfsense web UI.  However, I have to log in to the web UI rarely, so it doesn’t yet cause constant noise, and failed login is really rare due to a password management system where I don’t have to type my password.</p>
+
+<p>Below is the current ruleset that I have. Some form of action is launched from the following events.</p>
+
+<ul>
+  <li>SSH logins (failed/successful)</li>
+  <li>sudo logins (failed/successful)</li>
+  <li>sshguard’s attack alerts (Pfsense)</li>
+  <li>Web UI logins (Pfsense) (failed/successful)</li>
+  <li>Delay in Rsnapshot backups (uses Alerta <a href="https://docs.alerta.io/en/latest/gettingstarted/tutorial-2-housekeeping.html#step-3-heartbeats">heartbeats</a>)</li>
+</ul>
+
+<p>The content is a Jinja template and there is some Jinja variable definitions.</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">{{ log_dir }}</code> -&gt; <code class="language-plaintext highlighter-rouge">/srv/logstash</code></li>
+  <li><code class="language-plaintext highlighter-rouge">{{ alerta_api_address }}</code> -&gt; <code class="language-plaintext highlighter-rouge">http://127.0.0.1/api</code></li>
+  <li><code class="language-plaintext highlighter-rouge">{{ sec_email.from }}</code> -&gt; Sender address for email alerts</li>
+  <li><code class="language-plaintext highlighter-rouge">{{ sec_email.to }}</code> -&gt; Destination address for email alerts</li>
+  <li><code class="language-plaintext highlighter-rouge">{{ sec_email.server }}</code> -&gt; My SMTP server</li>
+  <li><code class="language-plaintext highlighter-rouge">{{ sec_email.port }}</code> -&gt; SMTP port</li>
+</ul>
+
+<p>The ruleset is just a starting point that I’m trying to improve with time. The SEC project has a <a href="https://github.com/simple-evcorr/rulesets/blob/master/ssh.sec">ruleset repository</a>, but instead of just using some existing rules, I try to be quite selective in this as well.</p>
+
+<div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># First two rules monitor for new files
+</span>
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">^(?:SEC_STARTUP|SEC_RESTART)$</span>
+<span class="py">context</span><span class="p">=</span><span class="s">SEC_INTERNAL_EVENT</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">start log file tracker</span>
+<span class="py">action</span><span class="p">=</span><span class="s">cspawn LOGTRACKER /usr/local/bin/logtracker.py {{ log_dir }}/WILDrsnapshot.log {{ log_dir }}/WILDsshd.log {{ log_dir }}/WILDsudo.log {{ log_dir }}/WILDphp-fpm.log {{ log_dir }}/WILD-sshguard.log</span>
+
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">^Open file (.+) (0|-)$</span>
+<span class="py">context</span><span class="p">=</span><span class="s">LOGTRACKER</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">open logfile $1 and start reading from offset $2</span>
+<span class="py">action</span><span class="p">=</span><span class="s">addinput $1 $2</span>
+
+<span class="c">###########################################
+# SSH/sudo sessions and other common stuff #
+###########################################
+</span>
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="se">\d</span> <span class="s">([0-9A-Za-z]+) sudo:.*authentication failure.*user=([0-9A-Za-z]+)</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">sudo auth failures</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service sudo --resource "$1" --environment Homelab --event "sudo authentication failure by $2 in host $1" --correlate SEC --severity warning --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span>
+
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="se">\d</span> <span class="s">([0-9A-Za-z]+) sshd</span><span class="se">\[\d</span><span class="s">+</span><span class="se">\]</span><span class="s">:.*authentication failure.*rhost=([0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+).*user=([0-9A-Za-z]+)</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">ssh auth failure</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service sshd --resource "$1" --environment Homelab --event "ssh login failure in $1 from $2 by $3" --correlate SEC --severity warning --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span><span class="c">; \
+</span>       <span class="s">shellcmd /usr/local/bin/send_email.py "{{ sec_email.from }}" "{{ sec_email.to }}" "ssh login failure in $1" "ssh login failure in $1 from $2 by $3" "{{ sec_email.server }}" {{ sec_email.port }}</span>
+
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="se">\d</span> <span class="s">([0-9A-Za-z]+) sshd</span><span class="se">\[\d</span><span class="s">+</span><span class="se">\]</span><span class="s">: Failed password for invalid user ([0-9A-Za-z]+) from ([0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+)</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">ssh invalid user</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service sshd --resource "$1" --environment Homelab --event "ssh login failure in $1 with invalid user $2 from $3" --correlate SEC --severity warning --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span><span class="c">; \
+</span>      <span class="s">shellcmd /usr/local/bin/send_email.py "{{ sec_email.from }}" "{{ sec_email.to }}" "ssh login failure in $1 with invalid user" "ssh login failure in $1 with invalid user $2 from $3" "{{ sec_email.server }}" {{ sec_email.port }}</span>
+
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">login</span><span class="se">\[</span><span class="s">.*</span><span class="se">\]</span><span class="s">: FAILED LOGIN.*</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">TTY failed login</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service TTYlogin --resource "{{ inventory_hostname }}" --environment Homelab --event "TTY login failure" --correlate SEC --severity warning --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span>
+
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="se">\d</span> <span class="s">([A-Za-z0-9._-]+) (sshd|sudo)(?:</span><span class="se">\[\d</span><span class="s">+</span><span class="se">\]</span><span class="s">)?: pam_unix</span><span class="se">\(</span><span class="s">(?:sshd|sudo):session</span><span class="se">\)</span><span class="s">: session (opened|closed) for user ([0-9A-Za-z]+)</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">sudo session</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service "$2" --resource "$1" --environment Homelab --event "$2 session $3 for user $4 in host $1" --correlate SEC --severity information --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span>
+
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="se">\d</span> <span class="s">([0-9A-Za-z]+) sshd</span><span class="se">\[\d</span><span class="s">+</span><span class="se">\]</span><span class="s">: Accepted (publickey|password|keyboard-interactive</span><span class="se">\/</span><span class="s">pam) for ([A-z0-9_-]+) from ([0-9.]+) port [0-9]+</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">ssh accepted pass or pub key</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service sshd --resource "$1" --environment Homelab --event "Accepted $2 for user $3 in host $1 from $4" --correlate SEC --severity information --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span>
+
+<span class="c">###########
+# pfsense #
+###########
+</span>
+<span class="py">type</span><span class="p">=</span><span class="s">SingleWithThreshold</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">webConfigurator authentication error for user '([a-zA-Z0-9@.-]+)' from: ([0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+).*</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">Pfsense failed web ui login</span>
+<span class="py">window</span><span class="p">=</span><span class="s">120</span>
+<span class="py">thresh</span><span class="p">=</span><span class="s">2</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service "pfsense" --resource "pfsense" --environment Homenet --event "Failed login in Pfsense Web UI for user '$1' from '$2'" --correlate SEC --severity critical --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span><span class="c">; \
+</span>       <span class="s">shellcmd /usr/local/bin/send_email.py "{{ sec_email.from }}" "{{ sec_email.to }}" "Failed login in Pfsense Web UI" "Failed login in Pfsense Web UI for user $1 from $2" "{{ sec_email.server }}" {{ sec_email.port }}</span>
+
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">/index.php: Successful login for user '([a-zA-Z0-9@.-]+)' from: ([0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+).*</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">Pfsense successful web ui login</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service "pfsense" --resource "pfsense" --environment Homenet --event "Successful login in Pfsense Web UI for user '$1' from '$2'" --correlate SEC --severity warning --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span><span class="c">; \
+</span>      <span class="s">shellcmd /usr/local/bin/send_email.py "{{ sec_email.from }}" "{{ sec_email.to }}" "Successful login in Pfsense Web UI" "Successful login in Pfsense Web UI for user $1 from $2" "{{ sec_email.server }}" {{ sec_email.port }}</span>
+
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="s">sshguard</span><span class="se">\[\d</span><span class="s">+</span><span class="se">\]</span><span class="s">: Attack from </span><span class="se">\\</span><span class="s">"([0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+</span><span class="se">\.</span><span class="s">[0-9]+)</span><span class="se">\\</span><span class="s">"</span> <span class="s">on service ([A-Za-z]+</span><span class="se">\s</span><span class="s">?[A-Za-z]+?) with danger (</span><span class="se">\d</span><span class="s">+)</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">Pfsense sshguard attack detected</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service sshguard --resource "pfsense" --environment Homenet --event "Pfsense - attack from $1 on service $2" --correlate SEC --severity critical --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span><span class="c">; \
+</span>       <span class="s">shellcmd /usr/local/bin/send_email.py "{{ sec_email.from }}" "{{ sec_email.to }}" "Pfsense's sshguard detected an attack" "Attack from $1 on service $2 with danger $3" "{{ sec_email.server }}" {{ sec_email.port }}</span>
+
+<span class="c"># matches with pfsense's syslog format where hostname is omitted
+# these will not scale well, for example, if multiple pfsense boxes
+# https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=194231
+</span><span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="se">\d</span> <span class="s">sshd</span><span class="se">\[\d</span><span class="s">+</span><span class="se">\]</span><span class="s">: Accepted (publickey|password|keyboard-interactive</span><span class="se">\/</span><span class="s">pam) for ([A-z0-9_-]+) from ([0-9.]+) port [0-9]+</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">ssh accepted pass or pub key</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service sshd --resource "pfsense" --environment Homelab --event "Accepted $1 for user $2 in Pfsense from $3" --correlate SEC --severity warning --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span>
+<span class="c"># secerity warning because ssh to pfsense are rare
+</span>
+<span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="se">\d</span> <span class="s">sshd</span><span class="se">\[\d</span><span class="s">+</span><span class="se">\]</span><span class="s">: error: PAM: Authentication error for ([A-z0-9_-]+) from ([0-9.]+)</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">ssh failed login</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd  alerta --endpoint-url "{{ alerta_api_address }}" send --service sshd --resource "pfsense" --environment Homelab --event "Authentication error for user $1 in Pfsense from $2" --correlate SEC --severity warning --text </span><span class="se">\'</span><span class="s">$0</span><span class="se">\'</span>
+
+
+<span class="c">#####################
+# Alerta heartbeats #
+#####################
+</span>
+<span class="c"># Backups
+# Action creates heartbeats to alerta
+</span><span class="py">type</span><span class="p">=</span><span class="s">Single</span>
+<span class="py">ptype</span><span class="p">=</span><span class="s">RegExp</span>
+<span class="py">pattern</span><span class="p">=</span><span class="se">\d</span> <span class="s">([A-Za-z0-9._-]+) rsnapshot(?:</span><span class="se">\[\d</span><span class="s">+</span><span class="se">\]</span><span class="s">)?: </span><span class="se">\/</span><span class="s">usr</span><span class="se">\/</span><span class="s">bin</span><span class="se">\/</span><span class="s">rsnapshot(?:</span><span class="se">\s</span><span class="s">-v)? hourly: completed successfully</span>
+<span class="py">desc</span><span class="p">=</span><span class="s">rsnapshot backups</span>
+<span class="py">action</span><span class="p">=</span><span class="s">shellcmd /usr/local/bin/alerta --endpoint-url "{{ alerta_api_address }}" heartbeat --origin $1_backup --timeout 86400 -E Homelab --severity critical</span>
+<span class="c"># alerta creates critical alert if it doesn't receive a new heartbeat within the timeout
+</span></code></pre></div></div>
+
+<p>All pattern matches generate some form of an event to Alerta using alerta cli tool. The basic syntax for this is:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>alerta <span class="nt">--endpoint-url</span> <span class="s2">"&lt;alerta_api_address&gt;"</span> send <span class="nt">--service</span> &lt;service name&gt; <span class="nt">--resource</span> &lt;resource name&gt; <span class="nt">--environment</span> &lt;<span class="nb">env </span>name&gt; <span class="nt">--event</span> &lt;event description&gt; <span class="nt">--correlate</span> &lt;some value <span class="k">for </span>simple correlation&gt; <span class="nt">--severity</span> &lt;severity level&gt; <span class="nt">--text</span> &lt;more detailed description&gt;
+</code></pre></div></div>
+
+<p>Note that the <code class="language-plaintext highlighter-rouge">environment</code> and the <code class="language-plaintext highlighter-rouge">severity</code> needs to match options that are configured in Alerta’s configuration.</p>
+
+<p>Some events that I expect to happen rarely generate an additional email alert. I have an SMTP relay server in my “homelab” network and I use a small Python script to send emails from SEC:</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/python3
+</span>
+<span class="s">"""
+usage:
+
+./send_email.py "&lt;from&gt;" "&lt;to&gt;" "&lt;subject&gt;" "&lt;body&gt;" "&lt;smtp server&gt;" &lt;port&gt;
+"""</span>
+
+<span class="kn">import</span> <span class="nn">smtplib</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+
+<span class="k">def</span> <span class="nf">send</span><span class="p">(</span><span class="n">from_</span><span class="p">,</span> <span class="n">to_</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">server</span><span class="p">,</span> <span class="n">port</span><span class="p">):</span>
+    <span class="n">mailserver</span> <span class="o">=</span> <span class="n">smtplib</span><span class="p">.</span><span class="n">SMTP</span><span class="p">(</span><span class="n">server</span><span class="p">,</span> <span class="mi">25</span><span class="p">)</span>
+    <span class="n">mailserver</span><span class="p">.</span><span class="n">ehlo</span><span class="p">()</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="s">'Subject: {}</span><span class="se">\n\n</span><span class="s">{}'</span><span class="p">.</span><span class="nb">format</span><span class="p">(</span><span class="n">subject</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+    <span class="n">mailserver</span><span class="p">.</span><span class="n">sendmail</span><span class="p">(</span><span class="n">from_</span><span class="p">,</span> <span class="n">to_</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+    <span class="n">mailserver</span><span class="p">.</span><span class="n">quit</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">'__main__'</span><span class="p">:</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">argparse</span><span class="p">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
+    <span class="n">args</span><span class="p">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'From'</span><span class="p">)</span>
+    <span class="n">args</span><span class="p">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'To'</span><span class="p">)</span>
+    <span class="n">args</span><span class="p">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'Subject'</span><span class="p">)</span>
+    <span class="n">args</span><span class="p">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'Body'</span><span class="p">)</span>
+    <span class="n">args</span><span class="p">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'Server'</span><span class="p">)</span>
+    <span class="n">args</span><span class="p">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'Port'</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">args</span><span class="p">.</span><span class="n">parse_args</span><span class="p">()</span>
+    <span class="n">send</span><span class="p">(</span><span class="n">res</span><span class="p">.</span><span class="n">From</span><span class="p">,</span> <span class="n">res</span><span class="p">.</span><span class="n">To</span><span class="p">,</span> <span class="n">res</span><span class="p">.</span><span class="n">Subject</span><span class="p">,</span> <span class="n">res</span><span class="p">.</span><span class="n">Body</span><span class="p">,</span> <span class="n">res</span><span class="p">.</span><span class="n">Server</span><span class="p">,</span> <span class="n">res</span><span class="p">.</span><span class="n">Port</span><span class="p">)</span>
+</code></pre></div></div>
+
+<h4 id="run-as-systemd-service">Run as Systemd service</h4>
+
+<p>This is the systemd unit file which I use to run the SEC:</p>
+
+<div class="language-ini highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nn">[Unit]</span>
+<span class="py">Description</span><span class="p">=</span><span class="s">Simple Event Correlator service</span>
+<span class="py">After</span><span class="p">=</span><span class="s">network.target</span>
+
+<span class="nn">[Service]</span>
+<span class="py">Type</span><span class="p">=</span><span class="s">simple</span>
+<span class="py">User</span><span class="p">=</span><span class="s">logstash</span>
+<span class="py">Environment</span><span class="p">=</span><span class="s">"LC_ALL=en_US.UTF-8"</span>
+<span class="py">Environment</span><span class="p">=</span><span class="s">"LANG=en_US.UTF-8"</span>
+<span class="py">ExecStart</span><span class="p">=</span><span class="s">/usr/bin/perl /opt/sec/sec --conf /opt/sec/rules/common-rules.conf --intevents --intcontexts --debug=6</span>
+<span class="py">Restart</span><span class="p">=</span><span class="s">on-failure</span>
+<span class="py">RestartSec</span><span class="p">=</span><span class="s">10s</span>
+
+<span class="nn">[Install]</span>
+<span class="py">WantedBy</span><span class="p">=</span><span class="s">multi-user.target</span>
+</code></pre></div></div>
+
+<p>Note that the service is running as <code class="language-plaintext highlighter-rouge">logstash</code> user so this user needs to have proper access to files under <code class="language-plaintext highlighter-rouge">/opt/sec/</code>.</p>
+
+<h2 id="security-considerations">Security considerations</h2>
+
+<p>I didn’t mention anything about authentication or other security features in the used components  because I have not yet implemented those while testing the setup, but I wanted to mention a few security configurations that I will implement in one form or another.</p>
+
+<h3 id="alerta-authentication-and-https">Alerta authentication and HTTPS</h3>
+
+<p>Alerta supports multiple different authentication schemes. You can find list of those here: <a href="https://docs.alerta.io/en/latest/authentication.html#authentication">https://docs.alerta.io/en/latest/authentication.html#authentication</a>.</p>
+
+<p>You need to provide an Alerta API key for the SEC service when you enable authentication in Alerta. With the alerta cli tool this can be done by specifying environment variable in SEC service’s systemd unit file:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Environment="ALERTA_API_KEY=&lt;api key&gt;"
+</code></pre></div></div>
+
+<p>However, keep in mind that all users can read the contents of the unit file using Dbus interface (<code class="language-plaintext highlighter-rouge">systemctl show</code>).</p>
+
+<p>Setting up HTTPS in reverse proxy like, Nginx or Apache, does not require any additional configuration in Alerta. You can find some Nginx configuration examples <a href="https://mtask.github.io/2020/04/18/nginx-client-certs.html">here</a> and also in <a href="https://ssl-config.mozilla.org/">this</a> excellent tool provided by Mozilla.</p>
+
+<h3 id="logstash-inputs-and-tls">Logstash inputs and TLS</h3>
+
+<p>Here’s an example <code class="language-plaintext highlighter-rouge">input</code> with TLS enabled:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  tcp {
+    port =&gt; 51445
+    mode =&gt; "server"
+    type =&gt; syslog
+    ssl_enable =&gt; true
+    ssl_certificate_authorities =&gt; "/etc/logstash/tls/cacert.pem"
+    ssl_cert =&gt; "/etc/logstash/tls/logstashcrt.pem"
+    ssl_key =&gt; "/etc/logstash/tls/logstashkey.pem"
+    ssl_verify =&gt; false # this is for client certificate
+    tags =&gt; ['syslog']
+  }
+</code></pre></div></div>
+
+<p>Setup message forwarding over TLS in rsyslog configurations:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>...
+# CA certificate
+global(DefaultNetstreamDriverCAFile="/etc/cacert.pem")
+...
+# Forward all events
+action(type="omfwd" protocol="tcp" port="51445" target="&lt;LOGSTASH HOST&gt;"
+       StreamDriver="gtls" StreamDriverMode="1" StreamDriverAuthMode="anon")
+...
+</code></pre></div></div>
+
+<p>Ensure that you have <code class="language-plaintext highlighter-rouge">rsyslog-gnutls</code> package installed on your log sources.</p>
+
+<p>If you want to require client certificate then set <code class="language-plaintext highlighter-rouge">ssl_verify</code> to <code class="language-plaintext highlighter-rouge">true</code> in Logstash configuration and set client certificate in rsyslog configuration like this:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>global(
+DefaultNetstreamDriverCAFile="/etc/cacert.pem"
+DefaultNetstreamDriverCertFile="/path/to/CLIENT-cert.pem"
+DefaultNetstreamDriverKeyFile="/path/to/CLIENT-key.pem"
+)
+</code></pre></div></div>
+
+<h2 id="log-files-lifecycle">Log files lifecycle</h2>
+
+<p>The actual log rotation configuration is TBD, but I will be using something simple like the below configuration. In the below example, when a file size grows to 20M, it will be rotated and moved to the history sub-directory.</p>
+
+<p><code class="language-plaintext highlighter-rouge">/etc/logrotate.d/logstash</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>/srv/logstash/*.log {
+        copytruncate
+        size 20M
+        olddir /srv/logstash/history
+        rotate 20
+    missingok
+    notifempty
+}
+</code></pre></div></div>
+
+<h2 id="how-it-all-looks">How it all looks</h2>
+
+<p>The most visual thing to show is Alerta, and this is how it looks with some events.</p>
+
+<p><img src="/assets/monitorhome4.png" alt="" /></p>
+
+<p>You can notice the duplicate column and how multiple logins and such will not clutter the output. The coloring also helps nicely to spot events with different severity levels. The next steps will be to implement the SEC ruleset for Snort and  OpenVPN, which I will cover in another post.</p>
+
+  </div><a class="u-url" href="/2021/01/03/centralized-log-collection-and-SEC-in-home-network.html" hidden></a>
+</article>
+
+<!-- TOC -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="/js/toc.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    $('#toc').toc();
+});
+</script>
+
+
+<!-- mermaid -->
+<script>
+var config = {
+    startOnLoad:true,
+    theme: 'forest',
+    flowchart:{
+            useMaxWidth:false,
+            htmlLabels:true
+        }
+};
+mermaid.initialize(config);
+window.mermaid.init(undefined, document.querySelectorAll('.language-mermaid'));
+</script>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col">
+        <p class="feed-subscribe">
+          <a href="/feed.xml">
+            <svg class="svg-icon orange">
+              <use xlink:href="/assets/minima-social-icons.svg#rss"></use>
+            </svg><span>Subscribe</span>
+          </a>
+        </p>
+        <ul class="contact-list">
+          <li class="p-name">mtask</li>
+          <li><a class="u-email" href="mailto:mtask.gh@protonmail.com">mtask.gh@protonmail.com</a></li><li><a href="/files/publickey.mtask.gh@protonmail.com.asc">8949b98a4e63585fe3bf6a953b9fd3e9ad04482e (gpg)</a></li></ul>
+      </div>
+      <div class="footer-col">
+        <p>cybersecurity, homelab tinkering, etc.</p>
+      </div>
+    </div>
+
+    <div class="social-links"><ul class="social-media-list"><li><a rel="me" href="https://github.com/mtask" title="mtask"><svg class="svg-icon grey"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg></a></li></ul>
+</div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
