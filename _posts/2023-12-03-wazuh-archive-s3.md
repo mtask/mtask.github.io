@@ -52,7 +52,7 @@ YEAR=$(date "+%Y")
 * This part handles change of the year and pushes files from last year's Dec directories (alerts and archives) to s3.
   * If directory exists, files are pushed to s3 and local directory is removed.
 ```sh
-if [[ $(date "+%m") = "1" ]]
+if [[ $(date "+%m") = "01" ]]
 then
     YEAR=$((YEAR-1))
     if [[ -d "$WAZUH_ALERTS/$YEAR/Dec/" ]]
@@ -148,7 +148,7 @@ WAZUH_ARCHIVE="/var/ossec/logs/archives"
 YEAR=$(date "+%Y")
 
 # Handle December when current month is January
-if [[ $(date "+%m") = "1" ]]
+if [[ $(date "+%m") = "01" ]]
 then
     YEAR=$((YEAR-1))
     if [[ -d "$WAZUH_ALERTS/$YEAR/Dec/" ]]
