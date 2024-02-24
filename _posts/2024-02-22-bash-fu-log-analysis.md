@@ -1,7 +1,7 @@
 ---
 title: '(Bash|Grep)-Fu Log Analysis'
 layout: 'post'
-tags: ["Security"]
+tags: ["Security", "LogAnalysis"]
 ---
 {:toc}
 

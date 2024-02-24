@@ -1,7 +1,7 @@
 ---
 title: 'Log analysis with Pandas'
 layout: 'post'
-tags: ["Security"]
+tags: ["Security", "LogAnalysis"]
 ---
 {:toc}
 
@@ -65,7 +65,7 @@ urllib.request.urlretrieve(APACHE_LOG_FILE_URL, apache_log_file)
 
 ## Normalizing logs to Pandas DataFrame
 
-Here I will show ho to parse sample Apache access log file to Pandas Data Frame.
+Here I will show how to parse sample Apache access log file to Pandas Data Frame.
 The main task in the below parser code is to normalize data from a log event using regular expression statement defined in variable `APACHE_RE`. 
 
 ```python
