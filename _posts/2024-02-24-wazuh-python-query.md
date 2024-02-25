@@ -225,6 +225,15 @@ df[(df['logontype'] != '5')]
     .dataframe thead th {
         text-align: right;
     }
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    table tbody {
+        display: table;
+        width: 100%;
+    }
 </style>
 <table border="1" class="dataframe">
   <thead>
@@ -819,3 +828,416 @@ pd.DataFrame(df[(df['status'] == 'Active')]['affected'].value_counts())
 </table>
 </div>
 
+## Query file integrity monitoring data and analyze it with Virus Total API
+
+This example shows how to query virus total api with new files added to machines monitored by Wazuh's file integrity module.
+
+Wazuh has [virus total integration](https://documentation.wazuh.com/current/user-manual/capabilities/malware-detection/virus-total-integration.html) available, but with free API key its capabilities are quite limited (4 requests per minute).
+
+We will first do a similar query as before and construct a data frame from the results. This query targets added files from `syscheck` events.
+
+Here `creds.json` should look like this:
+
+```json
+{"username": "<username>", "password": "<password>", "vtapikey": "<Virustotal API key>"}
+```
+
+
+```python
+import requests
+import json
+import time
+import pandas as pd
+from requests.auth import HTTPBasicAuth
+from datetime import datetime
+from dateutil.relativedelta import relativedelta 
+
+target_index = "wazuh-alerts-4.x-2024.02*"
+wazuh_server = "https://127.0.0.1:9200"
+
+with open('creds.json') as f:
+    data = json.load(f)
+    user = data['username']
+    password = data['password']
+    vtapikey = data['vtapikey']
+
+# maximum number of results to return
+result_max = 1000
+query = {"from" : 0, "size" : result_max,
+         "query":
+         {"bool":
+          {"must":
+           [
+               {"match":{"rule.groups": "syscheck_file"}},
+               {"match": {"syscheck.event": "added"}}
+           ]
+          }
+         }
+        }
+
+
+r = requests.post(f"{wazuh_server}/{target_index}/_search", json=query, verify=False, auth=HTTPBasicAuth(user,password))
+
+file_added_events = []
+for hit in r.json()['hits']['hits']:
+    fim_data = hit['_source']['syscheck']
+    _base_dict = {
+        "agent": hit['_source']['agent']['name'],
+        "timestamp": datetime.strptime(hit['_source']['@timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ')
+    }
+    _file_event = _base_dict | fim_data
+    file_added_events.append(_file_event)
+df = pd.DataFrame(file_added_events)
+df = df.set_index('timestamp')
+
+```
+
+Now we have the data in a data frame that is indexed by the timestamp and results look like this.
+
+
+```python
+df
+```
+
+
+
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>agent</th>
+      <th>uname_after</th>
+      <th>mtime_after</th>
+      <th>size_after</th>
+      <th>gid_after</th>
+      <th>mode</th>
+      <th>path</th>
+      <th>sha1_after</th>
+      <th>gname_after</th>
+      <th>uid_after</th>
+      <th>perm_after</th>
+      <th>event</th>
+      <th>md5_after</th>
+      <th>sha256_after</th>
+      <th>inode_after</th>
+    </tr>
+    <tr>
+      <th>timestamp</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>2024-02-24 21:30:12.739</th>
+      <td>testmachine1</td>
+      <td>root</td>
+      <td>2024-01-31T23:14:09</td>
+      <td>7039552</td>
+      <td>0</td>
+      <td>scheduled</td>
+      <td>/boot/vmlinuz-5.10.0-28-amd64</td>
+      <td>f8f4abe111a413b87d3c7926dbe86ed3b4fcb403</td>
+      <td>root</td>
+      <td>0</td>
+      <td>rw-r--r--</td>
+      <td>added</td>
+      <td>297b6a92dec82d8c36072a246f2ce611</td>
+      <td>99d46c742f33117b1a30fb487005f1cb319c4f16a7ad0b...</td>
+      <td>5519275</td>
+    </tr>
+    <tr>
+      <th>2024-02-24 21:30:17.354</th>
+      <td>testmachine1</td>
+      <td>root</td>
+      <td>2024-01-31T23:14:09</td>
+      <td>236364</td>
+      <td>0</td>
+      <td>scheduled</td>
+      <td>/boot/config-5.10.0-28-amd64</td>
+      <td>b29a61e9d5aded5a2e2560057939b14dd10d94b7</td>
+      <td>root</td>
+      <td>0</td>
+      <td>rw-r--r--</td>
+      <td>added</td>
+      <td>9695055abf02a617e8cd06c9ef4dad78</td>
+      <td>7a5d1191b15eb1f4b0e8a62149e3ec710273b35af7d8fe...</td>
+      <td>5519237</td>
+    </tr>
+    <tr>
+      <th>2024-02-24 21:30:17.355</th>
+      <td>testmachine1</td>
+      <td>root</td>
+      <td>2024-01-31T23:14:09</td>
+      <td>83</td>
+      <td>0</td>
+      <td>scheduled</td>
+      <td>/boot/System.map-5.10.0-28-amd64</td>
+      <td>5c06ff9db57a64ec70c6a8b71a0cd23c4de6b5f4</td>
+      <td>root</td>
+      <td>0</td>
+      <td>rw-r--r--</td>
+      <td>added</td>
+      <td>e0a6c09212a19ed48183a052eab847e7</td>
+      <td>f47b4c00d87f4b5378487972ded9d447074d4771bea98a...</td>
+      <td>5519225</td>
+    </tr>
+    <tr>
+      <th>2024-02-24 21:30:12.427</th>
+      <td>testmachine1</td>
+      <td>root</td>
+      <td>2024-02-24T20:57:47</td>
+      <td>30051389</td>
+      <td>0</td>
+      <td>scheduled</td>
+      <td>/boot/initrd.img-5.10.0-28-amd64</td>
+      <td>a561f6c201b6359d3a6d90a9c0c23523d30b3925</td>
+      <td>root</td>
+      <td>0</td>
+      <td>rw-r--r--</td>
+      <td>added</td>
+      <td>33cb59a129eeb2916791ead278d60ea0</td>
+      <td>4fef4d48f2096d8e7f98043d411e3f5a2fd816fb1933e6...</td>
+      <td>5520765</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+
+Below is a function that will parse the results from the VT API. It creates a dictionary like this per file:
+
+```python
+{
+    # Set to "yes" if any of the engines has flagged the checksum
+    "malicious": "<yes/no>",
+    # Set to yes if checksum was found in VT (response not 404)
+    "found_in_vt": "<yes/no>", 
+    # Engine that flagged the checksum. One key per engine.
+    "<engine>": "<category>"
+}
+```
+
+
+
+```python
+def vt_result_analyze(res,status_code):
+    results = {"malicious": "no", "found_in_vt": "yes"}
+    if status_code == 404:
+        results['found_in_vt'] = "no"
+        return results
+    analysis_results = res['data']['attributes']['last_analysis_results']
+    for engine in analysis_results:
+        _category = analysis_results[engine]['category']
+        if _category not in ["undetected", "type-unsupported"]:
+            results['malicious'] = "yes"
+            results[engine] = _category
+    return results
+```
+
+Here we will loop over the values in `sha256_after` column and call `https://www.virustotal.com/api/v3/files/<checksum>` endpoint for each hash.
+
+Loop will create a dict where result of the `vt_result_analyze` function is combined with a dict `{"sha256_after": "<hash>"}` and those are appended to a list.
+
+We are using the same column name `sha256_after`, so we can combine the original data with results from the VT API.
+
+The code will sleep for a minute after four API requests because of the VT API's limitations with a free API key.
+
+
+```python
+headers = {"x-apikey": vtapikey}
+vt_results = []
+req_n = 1
+for hash in df['sha256_after']:
+    if req_n == 4:
+        print("Waiting for 60 seconds...")
+        time.sleep(60)
+        req_n = 1
+    r = requests.get(f"https://www.virustotal.com/api/v3/files/{hash}", headers=headers)
+    if r.status_code not in [200,404]:
+        print(r.text, str(r.status_code))
+        break
+    vt_res = vt_result_analyze(r.json(), r.status_code)
+    # Add column with the same name as in in df so we can merge based on this column
+    vt_results.append({"sha256_after": hash}|vt_res)
+    req_n += 1
+```
+
+Now we have all the results from VT in `vt_results` variable.
+
+Next, we will turn that into a data frame and combine it with the original data frame base on the `sha256_after`columns.
+
+
+```python
+vtdf = pd.DataFrame(vt_results)
+dfinal = df.merge(vtdf, on='sha256_after')
+```
+
+Now we have the original file integrity data combined with virus total data in `dfinal` variable.
+
+
+```python
+dfinal
+```
+
+
+
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>agent</th>
+      <th>uname_after</th>
+      <th>mtime_after</th>
+      <th>size_after</th>
+      <th>gid_after</th>
+      <th>mode</th>
+      <th>path</th>
+      <th>sha1_after</th>
+      <th>gname_after</th>
+      <th>uid_after</th>
+      <th>perm_after</th>
+      <th>event</th>
+      <th>md5_after</th>
+      <th>sha256_after</th>
+      <th>inode_after</th>
+      <th>malicious</th>
+      <th>found_in_vt</th>
+      <th>Trapmine</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>testmachine1</td>
+      <td>root</td>
+      <td>2024-01-31T23:14:09</td>
+      <td>7039552</td>
+      <td>0</td>
+      <td>scheduled</td>
+      <td>/boot/vmlinuz-5.10.0-28-amd64</td>
+      <td>f8f4abe111a413b87d3c7926dbe86ed3b4fcb403</td>
+      <td>root</td>
+      <td>0</td>
+      <td>rw-r--r--</td>
+      <td>added</td>
+      <td>297b6a92dec82d8c36072a246f2ce611</td>
+      <td>99d46c742f33117b1a30fb487005f1cb319c4f16a7ad0b...</td>
+      <td>5519275</td>
+      <td>yes</td>
+      <td>yes</td>
+      <td>malicious</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>testmachine1</td>
+      <td>root</td>
+      <td>2024-01-31T23:14:09</td>
+      <td>236364</td>
+      <td>0</td>
+      <td>scheduled</td>
+      <td>/boot/config-5.10.0-28-amd64</td>
+      <td>b29a61e9d5aded5a2e2560057939b14dd10d94b7</td>
+      <td>root</td>
+      <td>0</td>
+      <td>rw-r--r--</td>
+      <td>added</td>
+      <td>9695055abf02a617e8cd06c9ef4dad78</td>
+      <td>7a5d1191b15eb1f4b0e8a62149e3ec710273b35af7d8fe...</td>
+      <td>5519237</td>
+      <td>no</td>
+      <td>no</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>testmachine1</td>
+      <td>root</td>
+      <td>2024-01-31T23:14:09</td>
+      <td>83</td>
+      <td>0</td>
+      <td>scheduled</td>
+      <td>/boot/System.map-5.10.0-28-amd64</td>
+      <td>5c06ff9db57a64ec70c6a8b71a0cd23c4de6b5f4</td>
+      <td>root</td>
+      <td>0</td>
+      <td>rw-r--r--</td>
+      <td>added</td>
+      <td>e0a6c09212a19ed48183a052eab847e7</td>
+      <td>f47b4c00d87f4b5378487972ded9d447074d4771bea98a...</td>
+      <td>5519225</td>
+      <td>no</td>
+      <td>yes</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>testmachine1</td>
+      <td>root</td>
+      <td>2024-02-24T20:57:47</td>
+      <td>30051389</td>
+      <td>0</td>
+      <td>scheduled</td>
+      <td>/boot/initrd.img-5.10.0-28-amd64</td>
+      <td>a561f6c201b6359d3a6d90a9c0c23523d30b3925</td>
+      <td>root</td>
+      <td>0</td>
+      <td>rw-r--r--</td>
+      <td>added</td>
+      <td>33cb59a129eeb2916791ead278d60ea0</td>
+      <td>4fef4d48f2096d8e7f98043d411e3f5a2fd816fb1933e6...</td>
+      <td>5520765</td>
+      <td>no</td>
+      <td>no</td>
+      <td>NaN</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+Funnily enough `Trapmine` engine flagged the new Linux kernel as malicious. I checked the details from virus total and this was based on *Malicious.high.ml.score*, so some trustworthy ML analysis. :)
