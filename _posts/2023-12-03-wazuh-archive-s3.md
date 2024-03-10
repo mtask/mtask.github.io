@@ -79,7 +79,7 @@ fi
 ```sh
 for m in $(seq 1 $(($(date "+%m")-1)))
 do
-    MONTH=$(date --date=$m" month" +'%b')
+    MONTH=$(date --date="$YEAR-$m-01" +'%b')
     if [[ -d "$WAZUH_ALERTS/$YEAR/$MONTH/" ]]
     then
         s3cmd put "$WAZUH_ALERTS/$YEAR/$MONTH/"* "$BUCKET/wazuh/alerts/$YEAR/$MONTH/" -e
@@ -171,7 +171,7 @@ fi
 # Handle months 1 - 11
 for m in $(seq 1 $(($(date "+%m")-1)))
 do
-    MONTH=$(date --date=$m" month" +'%b')
+    MONTH=$(date --date="$YEAR-$m-01" +'%b')
     if [[ -d "$WAZUH_ALERTS/$YEAR/$MONTH/" ]]
     then
         s3cmd put "$WAZUH_ALERTS/$YEAR/$MONTH/"* "$BUCKET/wazuh/alerts/$YEAR/$MONTH/" -e
