@@ -69,7 +69,7 @@ unmkinitramfs /mnt/boot/initrd.img-"$kernel" initramfs/
 
 Now unpacked version of the original initramfs can found in `/tmp/init/initramfs/`.
 
-### 3. Create a wrapper scipt for the cryptsetup
+### 3. Create a wrapper script for the cryptsetup
 
 One could do something sophisticated like replace `cryptsetup` with a new compiled version that includes some malicious code for stealing the encryption key. I'm doing the lazy version and will replace the cryptsetup with a wrapper script.
 
