@@ -8,5 +8,4 @@ Cybersecurity specialist from Finland.
 
 ## What is this blog about?
 
-I'll post about different subjects that I find interesting, and usually, this means topics that are more or less cybersecurity-related. 
-I have a sysadmin background, and I try to maintain my ability to administrate modern systems and networks while not doing that professionally so much anymore, so my posts will most likely reflect this as well.
+I’m here to share my tinkering on a bunch of topics that catch my eye, mostly around cybersecurity. With a sysadmin background, I like to keep up with modern systems and networks, even though I’m not in the trenches as much anymore. So, you’ll probably see that influence in my posts.
