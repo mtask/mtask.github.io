@@ -5,3 +5,42 @@
 @import
   "minima/skins/{{ site.minima.skin | default: 'classic' }}",
   "minima/initialize";
+
+/**
+ * Site header
+ */
+.site-header {
+  border-top: 5px solid $border-color-03;
+  border-bottom: 1px solid $border-color-01;
+  min-height: $spacing-unit * 1.865;
+  line-height: $base-line-height * $base-font-size * 2.25;
+  background: linear-gradient(to right, black, #008080);
+  // Positioning context for the mobile navigation icon
+  position: relative;
+}
+
+/* Accent colors */
+a {
+  color: #00ffcc;
+}
+
+a:hover {
+  color: #ff0099;
+}
+
+/* Syntax highlighting for code */
+pre {
+  background-color: #2e2e2e;
+  padding: 15px;
+  border-radius: 5px;
+}
+
+pre code {
+  color: #00ffcc;
+}
+
+/* Footer */
+.footer {
+  background-color: #151515;
+  color: #f8f9fa;
+}
