@@ -6,6 +6,7 @@ tags: ['cti', 'osint']
 {:toc}
 
 I’ve been experimenting with using Obsidian for investigation work such as OSINT cases or incident response. While it’s not a traditional link analysis tool like Maltego, with the right structure and plugins, Obsidian can be surprisingly effective.
+Check [this](https://obsidian.md/) if you do not know what Obsidian is.
 
 ## Entities with templates
 
